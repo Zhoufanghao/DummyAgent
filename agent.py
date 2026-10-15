@@ -1,4 +1,4 @@
-"""v3：每个自由问题可使用一轮工具；--demo显示固定对照。"""
+"""v4：每个用户任务进入显式Agent Loop；跨任务保留上下文。"""
 import json
 import math
 from common import call, run, inputs
@@ -54,14 +54,10 @@ def chat_demo(client, args):
         messages.append({"role": "assistant", "content": answer})
 
 
-def main(client, args):
-    if args.tokens:
-        return token_demo(client, args)
-    if args.chat:
-        return chat_demo(client, args)
+def calculator_demo(client, args):
     system = {"role": "system", "content": "你是中文计算助手，需要计算时使用calculator，以实际工具结果为准。"}
     messages = [system]
-    examples = ["请计算(12345 * 6789) / (17 + 29)，简短回答。"]
+    examples = ["先用calculator计算(12345 * 6789) / (17 + 29)，等结果返回后，再用calculator把该结果除以3。每轮只请求一次计算，最后简短汇报。"]
     print("Tool Schema →", json.dumps(TOOLS, ensure_ascii=False))
     for task in inputs(args, examples, "你（:quit退出，:reset清空历史）：", args.task):
         if task.strip() == ":reset":
@@ -75,33 +71,50 @@ def main(client, args):
                          temperature=args.temperature, max_tokens=220,
                          extra_body={"thinking": {"type": "disabled"}})
             print(f"[不使用工具] {plain.choices[0].message.content}")
+        try:
+            agent_loop(client, args, messages)
+        except RuntimeError as error:
+            if args.demo or args.task is not None:
+                raise
+            print(f"[本任务停止] {error}；可继续输入下一个任务。")
+
+
+def agent_loop(client, args, messages):
+    iteration = 0
+    while iteration < args.max_iterations:
+        iteration += 1
+        print(f"\n[Agent Loop {iteration}/{args.max_iterations}] 调用LLM")
         response = call(client.chat.completions.create, model=args.model, messages=messages,
-                        tools=TOOLS, tool_choice="required" if args.demo else "auto",
-                        temperature=args.temperature, max_tokens=500,
-                        extra_body={"thinking": {"type": "disabled"}})
+                        tools=TOOLS, tool_choice="auto", temperature=args.temperature,
+                        max_tokens=1600, extra_body={"thinking": {"type": "disabled"}})
         choice = response.choices[0]
         message = choice.message
-        if message.tool_calls:
-            if choice.finish_reason != "tool_calls" or len(message.tool_calls) > 4:
-                raise RuntimeError("Tool Call不完整或数量超限")
-            messages.append(message.model_dump(include={"role", "content", "tool_calls"}, exclude_none=True))
-            for tool_call in message.tool_calls:
-                print("LLM → Tool Call：", tool_call.function.name, tool_call.function.arguments)
-                result = execute(tool_call)  # 模型只请求；真正执行的是Python程序。
-                print("Python Function → Tool Result：", result)
-                messages.append({"role": "tool", "tool_call_id": tool_call.id,
-                                 "content": json.dumps(result, ensure_ascii=False)})
-            # 只回填一次并回答；尚未加入反复请求工具的Agent Loop。
-            response = call(client.chat.completions.create, model=args.model, messages=messages,
-                            temperature=args.temperature, max_tokens=500,
-                            extra_body={"thinking": {"type": "disabled"}})
-            choice = response.choices[0]
-            message = choice.message
-        if choice.finish_reason != "stop":
-            raise RuntimeError("回答被截断或异常停止")
-        print("LLM → 最终回答：", message.content)
-        messages.append({"role": "assistant", "content": message.content or ""})
+        if not message.tool_calls:
+            if choice.finish_reason != "stop":
+                raise RuntimeError("LLM被截断或异常停止，不能算作任务完成")
+            print("LLM → 最终回答：", message.content)
+            messages.append({"role": "assistant", "content": message.content or ""})
+            return
+        if choice.finish_reason != "tool_calls" or len(message.tool_calls) > 4:
+            raise RuntimeError("Tool Call不完整或数量超限")
+        messages.append(message.model_dump(include={"role", "content", "tool_calls"}, exclude_none=True))
+        for tool_call in message.tool_calls:
+            print("LLM → Tool Call：", tool_call.function.name, tool_call.function.arguments)
+            result = execute(tool_call)  # 外部执行，再把观察结果放回上下文。
+            print("Python Function → Tool Result：", result)
+            messages.append({"role": "tool", "tool_call_id": tool_call.id,
+                             "content": json.dumps(result, ensure_ascii=False)})
+        # 下一轮模型现在能看到刚才的结果；下一条用户任务重新计数。
+    raise RuntimeError("达到最大迭代次数，任务尚未确认完成")
+
+
+def main(client, args):
+    if args.tokens:
+        return token_demo(client, args)
+    if args.chat:
+        return chat_demo(client, args)
+    calculator_demo(client, args)
 
 
 if __name__ == "__main__":
-    run(main, "v3-tools")
+    run(main, "v4-agent-loop")
