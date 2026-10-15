@@ -15,3 +15,9 @@
 
 - 4次真实Completion：独立第二次回复“不知道”；重新提交history后回复“A102”。
 - 检查第二次请求确实没有编号、第四次请求确实包含完整用户与助手历史；语法/离线回放通过。
+
+## v2-chat
+
+- 两次真实Chat Completion成功；请求角色顺序分别system/user与system/user/assistant/user，第二次恢复A102。
+- 禁用thinking以便展示普通回复；检查每次请求为不可变快照（避免后续append污染录制）。
+- 语法、无SDK离线回放和快照回归检查通过。公开V3 Chat Template辅助演示随课程材料交付。

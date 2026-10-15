@@ -1,4 +1,4 @@
-"""v1：保持文本 Completion，只增加应用程序维护的 history。"""
+"""v2：把文本history改成有角色的messages。"""
 import math
 from common import call, run
 
@@ -23,32 +23,29 @@ def token_demo(client, args):
     print(f"\n完整续写：{args.prompt}{choice.text}\n停止原因：{choice.finish_reason}")
 
 
-def text_reply(client, args, prompt):
-    print(f"提交给API的文本：{prompt!r}")
-    response = call(client.completions.create, model=args.model, prompt=prompt,
-                    max_tokens=120, temperature=args.temperature, stop=["\n用户："])
-    answer = response.choices[0].text.strip()
-    print(f"助手：{answer}")
-    return answer
-
-
 def main(client, args):
     if args.tokens:
         return token_demo(client, args)
-    instruction = "请续写下面的中文对话，只回答最后一个问题；不知道的信息请说不知道。\n"
-    questions = ["我的实验编号是 A102。", "我的实验编号是什么？"]
-    print("\n[对照：两次独立调用，没有history]")
-    for question in questions:
-        text_reply(client, args, instruction + f"用户：{question}\n助手：")
-    print("\n[新增：由应用程序保存并重新提交history]")
-    history = instruction
-    for question in questions:
-        history += f"用户：{question}\n助手："
-        answer = text_reply(client, args, history)
-        history += answer + "\n"
-    if "A102" not in answer:
-        raise RuntimeError("本次未成功恢复实验编号，可重试或使用已验证回放")
+    messages = [{"role": "system", "content": "你是简洁的中文实验助手。不知道的信息请说不知道。"}]
+    questions = iter(["我的实验编号是 A102。", "我的实验编号是什么？"])
+    while True:
+        try:
+            question = next(questions) if args.demo else input("你（:quit退出）：")
+        except (StopIteration, EOFError):
+            break
+        if question == ":quit":
+            break
+        messages.append({"role": "user", "content": question})
+        print(f"Messages → {messages}")
+        response = call(client.chat.completions.create, model=args.model,
+                        messages=messages, temperature=args.temperature, max_tokens=160,
+                        extra_body={"thinking": {"type": "disabled"}})
+        if response.choices[0].finish_reason != "stop":
+            raise RuntimeError("回复未正常完成，请缩短输入或使用回放")
+        answer = response.choices[0].message.content
+        print(f"助手：{answer}")
+        messages.append({"role": "assistant", "content": answer})
 
 
 if __name__ == "__main__":
-    run(main, "v1-memory")
+    run(main, "v2-chat")

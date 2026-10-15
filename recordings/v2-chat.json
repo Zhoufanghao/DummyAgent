@@ -1,0 +1,142 @@
+{
+  "kind": "live-api-recording",
+  "stage": "v2-chat",
+  "recorded_at": "2026-10-15T05:56:26.058161+00:00",
+  "model_requested": "deepseek-flash",
+  "events": [
+    {
+      "endpoint": "Completions.create",
+      "request": {
+        "model": "deepseek-flash",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是简洁的中文实验助手。不知道的信息请说不知道。"
+          },
+          {
+            "role": "user",
+            "content": "我的实验编号是 A102。"
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 160,
+        "extra_body": {
+          "thinking": {
+            "type": "disabled"
+          }
+        }
+      },
+      "response": {
+        "id": "a561a4f0-b533-4c35-aba6-c0a677f3b5ef",
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "index": 0,
+            "logprobs": null,
+            "message": {
+              "content": "好的，已记录实验编号 A102。请问接下来需要我协助什么？",
+              "refusal": null,
+              "role": "assistant",
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "tool_calls": null
+            }
+          }
+        ],
+        "created": 1792043785,
+        "model": "deepseek-flash",
+        "object": "chat.completion",
+        "moderation": null,
+        "service_tier": null,
+        "system_fingerprint": "aeb56401ca74e127821c4f9126dcb669",
+        "usage": {
+          "completion_tokens": 16,
+          "prompt_tokens": 25,
+          "total_tokens": 41,
+          "completion_tokens_details": null,
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cache_write_tokens": null,
+            "cached_tokens": 0
+          },
+          "prompt_cache_hit_tokens": 0,
+          "prompt_cache_miss_tokens": 25
+        }
+      },
+      "elapsed_seconds": 0.675
+    },
+    {
+      "endpoint": "Completions.create",
+      "request": {
+        "model": "deepseek-flash",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是简洁的中文实验助手。不知道的信息请说不知道。"
+          },
+          {
+            "role": "user",
+            "content": "我的实验编号是 A102。"
+          },
+          {
+            "role": "assistant",
+            "content": "好的，已记录实验编号 A102。请问接下来需要我协助什么？"
+          },
+          {
+            "role": "user",
+            "content": "我的实验编号是什么？"
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 160,
+        "extra_body": {
+          "thinking": {
+            "type": "disabled"
+          }
+        }
+      },
+      "response": {
+        "id": "fb477520-6933-4ec9-9310-fa8e79e89b12",
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "index": 0,
+            "logprobs": null,
+            "message": {
+              "content": "你的实验编号是 A102。",
+              "refusal": null,
+              "role": "assistant",
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "tool_calls": null
+            }
+          }
+        ],
+        "created": 1792043785,
+        "model": "deepseek-flash",
+        "object": "chat.completion",
+        "moderation": null,
+        "service_tier": null,
+        "system_fingerprint": "aeb56401ca74e127821c4f9126dcb669",
+        "usage": {
+          "completion_tokens": 7,
+          "prompt_tokens": 50,
+          "total_tokens": 57,
+          "completion_tokens_details": null,
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cache_write_tokens": null,
+            "cached_tokens": 0
+          },
+          "prompt_cache_hit_tokens": 0,
+          "prompt_cache_miss_tokens": 50
+        }
+      },
+      "elapsed_seconds": 0.293
+    }
+  ],
+  "source_sha256": "290e3f349587ef2831075dcedf24cf7ff7968adb3020457b8af8359503205c61",
+  "transcript": "[实时 LIVE · v2-chat] model=deepseek-flash · https://api.deepseek.com/beta\nMessages → [{'role': 'system', 'content': '你是简洁的中文实验助手。不知道的信息请说不知道。'}, {'role': 'user', 'content': '我的实验编号是 A102。'}]\n助手：好的，已记录实验编号 A102。请问接下来需要我协助什么？\nMessages → [{'role': 'system', 'content': '你是简洁的中文实验助手。不知道的信息请说不知道。'}, {'role': 'user', 'content': '我的实验编号是 A102。'}, {'role': 'assistant', 'content': '好的，已记录实验编号 A102。请问接下来需要我协助什么？'}, {'role': 'user', 'content': '我的实验编号是什么？'}]\n助手：你的实验编号是 A102。\n"
+}

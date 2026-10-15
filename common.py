@@ -15,9 +15,10 @@ EVENTS = []
 
 def call(method, **params):
     """调用真实 SDK；只记录请求参数/响应，不记录认证头。"""
+    request_snapshot = json.loads(json.dumps(params, ensure_ascii=False))
     started = time.monotonic()
     response = method(**params)
-    EVENTS.append({"endpoint": method.__qualname__, "request": params,
+    EVENTS.append({"endpoint": method.__qualname__, "request": request_snapshot,
                    "response": response.model_dump(mode="json"),
                    "elapsed_seconds": round(time.monotonic() - started, 3)})
     return response
