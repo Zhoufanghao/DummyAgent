@@ -1,4 +1,4 @@
-"""v3：每个问题只做一轮工具请求、执行、回填和回答。"""
+"""v4：工具结果反馈给模型，每个任务进入显式 Agent Loop。"""
 import json
 import os
 import sys
@@ -6,34 +6,34 @@ from tools import TOOLS, execute
 
 MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-flash")
 TEMPERATURE = 0
+MAX_ITERATIONS = 100
 
 
-def tool_reply(client, messages):
-    response = client.chat.completions.create(
-        model=MODEL, messages=messages, tools=TOOLS, tool_choice="auto",
-        temperature=TEMPERATURE, max_tokens=500,
-        extra_body={"thinking": {"type": "disabled"}})
-    choice = response.choices[0]
-    message = choice.message
-    if message.tool_calls:
+def agent_loop(client, messages):
+    for iteration in range(1, MAX_ITERATIONS + 1):
+        print(f"\n[Agent Loop {iteration}/{MAX_ITERATIONS}] 调用LLM")
+        response = client.chat.completions.create(
+            model=MODEL, messages=messages, tools=TOOLS, tool_choice="auto",
+            temperature=TEMPERATURE, max_tokens=1600,
+            extra_body={"thinking": {"type": "disabled"}})
+        choice = response.choices[0]
+        message = choice.message
+        if not message.tool_calls:
+            if choice.finish_reason != "stop":
+                raise RuntimeError("LLM被截断或异常停止，不能算作任务完成")
+            print("LLM → 最终回答：", message.content)
+            messages.append({"role": "assistant", "content": message.content or ""})
+            return
         if choice.finish_reason != "tool_calls" or len(message.tool_calls) > 4:
             raise RuntimeError("Tool Call不完整或数量超限")
         messages.append(message.model_dump(include={"role", "content", "tool_calls"}, exclude_none=True))
         for tool_call in message.tool_calls:
             print("LLM → Tool Call：", tool_call.function.name, tool_call.function.arguments)
-            result = execute(tool_call)  # 模型提出请求，Python执行函数。
+            result = execute(tool_call)
             print("Python Function → Tool Result：", result)
             messages.append({"role": "tool", "tool_call_id": tool_call.id,
                              "content": json.dumps(result, ensure_ascii=False)})
-        response = client.chat.completions.create(
-            model=MODEL, messages=messages, temperature=TEMPERATURE, max_tokens=500,
-            extra_body={"thinking": {"type": "disabled"}})
-        choice = response.choices[0]
-        message = choice.message
-    if choice.finish_reason != "stop" or message.tool_calls:
-        raise RuntimeError("回答被截断或异常停止")
-    print("LLM → 最终回答：", message.content)
-    messages.append({"role": "assistant", "content": message.content or ""})
+    raise RuntimeError("达到最大迭代次数，任务尚未确认完成")
 
 
 def main(client):
@@ -48,7 +48,10 @@ def main(client):
         if not task.strip():
             continue
         messages.append({"role": "user", "content": task})
-        tool_reply(client, messages)
+        try:
+            agent_loop(client, messages)
+        except RuntimeError as error:
+            print(f"[本任务停止] {error}；可继续输入下一个任务。")
 
 
 def cli():
