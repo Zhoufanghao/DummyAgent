@@ -1,4 +1,4 @@
-"""v0：一次原始 Completion，逐位置查看真实 logprobs。"""
+"""v1：保持文本 Completion，只增加应用程序维护的 history。"""
 import math
 from common import call, run
 
@@ -23,9 +23,32 @@ def token_demo(client, args):
     print(f"\n完整续写：{args.prompt}{choice.text}\n停止原因：{choice.finish_reason}")
 
 
+def text_reply(client, args, prompt):
+    print(f"提交给API的文本：{prompt!r}")
+    response = call(client.completions.create, model=args.model, prompt=prompt,
+                    max_tokens=120, temperature=args.temperature, stop=["\n用户："])
+    answer = response.choices[0].text.strip()
+    print(f"助手：{answer}")
+    return answer
+
+
 def main(client, args):
-    token_demo(client, args)
+    if args.tokens:
+        return token_demo(client, args)
+    instruction = "请续写下面的中文对话，只回答最后一个问题；不知道的信息请说不知道。\n"
+    questions = ["我的实验编号是 A102。", "我的实验编号是什么？"]
+    print("\n[对照：两次独立调用，没有history]")
+    for question in questions:
+        text_reply(client, args, instruction + f"用户：{question}\n助手：")
+    print("\n[新增：由应用程序保存并重新提交history]")
+    history = instruction
+    for question in questions:
+        history += f"用户：{question}\n助手："
+        answer = text_reply(client, args, history)
+        history += answer + "\n"
+    if "A102" not in answer:
+        raise RuntimeError("本次未成功恢复实验编号，可重试或使用已验证回放")
 
 
 if __name__ == "__main__":
-    run(main, "v0-token")
+    run(main, "v1-memory")
