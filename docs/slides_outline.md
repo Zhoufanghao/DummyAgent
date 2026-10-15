@@ -11,7 +11,7 @@
 |---|---|---|---|---|---|
 | 1 | 00:00—00:40 | 从文字接龙到 AI Agent | 课程题目；CSV → 温度统计 → Markdown 报告 | 今天理解关键机制，不要求抄完代码 | 使用指定课程名 |
 | 2 | 00:40—04:00 | 温度报告任务 | 用户任务、CSV 局部、实际报告 | `python agent_v5.py` 后输入任务；或展示明确标记的 REPLAY。独立核对 10 行、24.5 / 29 / 20 ℃ | 文件直接留在启动目录；回放不会重建文件 |
-| 3 | 04:00—05:00 | v0：独立续写 | `OpenAI(...)` 与 `client.completions.create(...)`，框出 prompt/logprobs | SDK 为客户端，服务地址指向 DeepSeek；FIM Beta 只给前缀 | [FIM API](https://api-docs.deepseek.com/api/create-completion/) |
+| 3 | 04:00—05:00 | 最小 Completion | `api_demo.py`：客户端 → prompt → choices[0].text | 先运行8行示例验证API；使用与v0相同的Beta接口，下一页再加入交互与logprobs | [FIM API](https://api-docs.deepseek.com/api/create-completion/) |
 | 4 | 05:00—08:20 | 下一个 token 的条件概率 | 当前上下文、真实 top-k、生成项；公式 `Pr[token \| context]` | 运行 `agent_v0.py`。一次请求完成后逐位置展示真实响应，更新显示的上下文；不是流式或逐 token 请求，token 不等于汉字 | exp(logprob)，不归一化 top-k；候选不是完整分布或事实置信度 |
 | 5 | 08:20—11:00 | Temperature 与采样 | 同一前缀、温度 0 与 0.8 的真实输出 | 只改 v0 顶部 TEMPERATURE 并重启，TOKEN_STEPS 保持 12（生成上限）；现场真实比较后恢复 0 | 现有录制只含温度 0；低温不保证正确或逐字复现；[FIM 参数](https://api-docs.deepseek.com/api/create-completion/) |
 | 6 | 11:00—17:00 | v1：文本 history | 无编号历史的请求；带 A102 的 history；保存与拼接代码 | `agent_v1.py` 新会话只问编号；重启后先告知 A102 再问。比较实际提交文本 | 不要求无历史模型必然答错；有限上下文不等于长期记忆 |

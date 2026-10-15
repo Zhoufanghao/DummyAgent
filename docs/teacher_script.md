@@ -36,7 +36,7 @@ python verify_live.py --output-dir "$REHEARSAL_DIR"
 
 开课前只需核对以下配置与证据：
 
-- 所有调用直接写 `model="deepseek-flash"`，SDK 超时 45 秒、重试 1 次。只有 v0 显式传 `TEMPERATURE = 0`，生成上限为 12 token；v1—v5 不传温度。
+- 所有调用直接写 `model="deepseek-flash"`。六份 Agent 的 SDK 超时 45 秒、重试 1 次；最小 `api_demo.py` 使用 SDK 默认超时和重试。只有 v0 显式传 `TEMPERATURE = 0`，生成上限为 12 token；v1—v5 不传温度。
 - v2—v4 固定关闭 thinking。v3 的生成上限为 500 token，v4 为 1600。仅 v5 顶部 `THINKING = True` 控制模式和 `reasoning_content` 打印；非流式完整响应返回后才显示，思考与回答共用 8192 token，完整消息进入历史。
 - 当前 v3/v4 录制来自北京时间 2026-10-15 23:24，均关闭 thinking；v5 来自 2026-10-16 00:05，开启 thinking。JSON 与网页中的记录时间采用 UTC，此处换算为北京时间。它们只说明这几次实际运行，现场路径和结果仍须核对。
 - CSV 的独立基准为 10 行、平均 24.5 ℃、最大 29 ℃、最小 20 ℃。检查真实文件或转录中的文件读取结果，不能只看“完成”字样。
@@ -85,13 +85,21 @@ python agent_v5.py
 
 ## 04:00—11:00 v0：独立续写
 
-**04:00—05:00，打开 agent_v0.py。**
+**04:00—05:00，先打开并运行 api_demo.py。**
+
+```bash
+python api_demo.py
+```
 
 “程序从环境读取密钥，设置服务地址，把文本前缀发给模型。OpenAI SDK 是客户端工具；服务地址和模型参数决定请求发往哪里。”
 
-指出 `client.completions.create(...)`、`prompt`、`max_tokens`、`logprobs`。DeepSeek FIM Completion Beta 在这里只接收前缀，不设置后缀，用于观察续写；不能据此断言当前模型是未经指令训练的基础模型。
+依次指出客户端初始化、`client.completions.create(...)` 和 `response.choices[0].text`：提交 `prompt` 前缀，打印续写片段。这里使用 Beta 地址，与后面的 v0 是同一个 Completion 接口。它不用 Chat 的 messages，也不读取 message.content。
+
+“先确认最小调用能返回文本，再打开 v0，加入交互和概率展示。”
 
 **05:00—07:00，演示真实 token 记录。**
+
+打开 `agent_v0.py`，定位新增的输入循环与 `logprobs`。只传前缀、不设置后缀用于观察续写；不能据此断言当前模型是未经指令训练的基础模型。
 
 ```bash
 python agent_v0.py

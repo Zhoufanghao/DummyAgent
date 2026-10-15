@@ -13,10 +13,12 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements-lock.txt
 export DEEPSEEK_API_KEY="替换为你的密钥"
-python agent_v0.py
+python api_demo.py
 ```
 
 已有环境可直接激活，也可从自己的环境文件加载 `DEEPSEEK_API_KEY`。程序只读取环境变量，不自动加载 `.env`。依赖为 OpenAI Python SDK 与 `prompt_toolkit`，其余使用标准库。SDK 连接 DeepSeek 的 Beta 地址，所有请求直接写 `model="deepseek-flash"`；模型别名与公开模板的依据见 [来源说明](docs/sources.md)。
+
+`api_demo.py` 是 8 行的最小 Completion 示例：创建客户端、提交文本前缀、打印 `response.choices[0].text`。先用它确认 API 可用，再运行 `python agent_v0.py`，加入交互和概率展示。它与 v0 使用相同的 Beta 地址和 Completion 接口，不需要 messages 或工具定义。
 
 每版均以 `$ ` 提示输入。在支持 bracketed paste 的终端中，多行粘贴保留换行，按一次 Enter 整段提交；空白输入跳过。Ctrl+D 或 Ctrl+C 结束程序，重新启动即开始新对话。
 
@@ -107,6 +109,7 @@ python build_viewer.py
 
 | 路径 | 用途 |
 |---|---|
+| `api_demo.py` | 单次 Completion，验证 API 可用 |
 | `agent_v0.py`—`agent_v5.py` | 六份独立课堂程序 |
 | `data/` | 温度 CSV、公开 V3 模板原文 |
 | `docs/` | 讲稿、大纲、来源、循环案例、Bash 说明 |
