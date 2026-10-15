@@ -1,4 +1,4 @@
-"""真实阶段源码的离线交互测试；fixture 不请求 API、不执行 Bash。
+"""teaching-cleanup 阶段源码的离线测试；fixture 不请求 API、不执行 Bash。
 
 候选提交可用 DUMMY_AGENT_STAGE_REFS 的 JSON tag/ref 映射验证。
 临时阶段目录可用 DUMMY_AGENT_STAGE_DIR 指定，其下按教学 tag 分目录。
@@ -34,7 +34,7 @@ def load_stage(tag):
             directory = Path(temporary)
             refs = json.loads(os.environ.get("DUMMY_AGENT_STAGE_REFS", "{}"))
             archive = subprocess.run(
-                ["git", "archive", refs.get(tag, tag)], cwd=ROOT,
+                ["git", "archive", refs.get(tag, f"teaching-cleanup/{tag}")], cwd=ROOT,
                 check=True, capture_output=True,
             ).stdout
             with tarfile.open(fileobj=io.BytesIO(archive)) as contents:
@@ -137,6 +137,18 @@ class InteractiveTests(unittest.TestCase):
                     self.assertFalse(hasattr(stage.tools, "calculator"))
                 if tag in TAGS[:3]:
                     self.assertIsNone(stage.tools)
+
+    def test_stage_runtime_depends_only_on_agent_and_tools(self):
+        for tag in TAGS:
+            with self.subTest(tag=tag), load_stage(tag) as stage:
+                local_modules = set()
+                for module in list(sys.modules.values()):
+                    filename = getattr(module, "__file__", None)
+                    if filename:
+                        path = Path(filename).resolve()
+                        if path.is_relative_to(stage.directory.resolve()):
+                            local_modules.add(path.relative_to(stage.directory.resolve()).as_posix())
+                self.assertLessEqual(local_modules, {"agent.py", "tools.py"})
 
     def test_all_stages_skip_blanks_and_accept_two_custom_inputs(self):
         for tag in TAGS:

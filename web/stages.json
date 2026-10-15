@@ -1,6 +1,7 @@
 [
   {
     "tag": "v0-token",
+    "ref": "teaching-cleanup/v0-token",
     "title": "Stage 0 · 文字接龙",
     "ability": "查看模型如何逐个生成 Token，以及 API 返回的候选概率。",
     "why": "先把大段回答拆成可观察的生成步骤，建立对上下文与采样的直觉。",
@@ -10,6 +11,7 @@
   },
   {
     "tag": "v1-memory",
+    "ref": "teaching-cleanup/v1-memory",
     "title": "Stage 1 · 对话历史",
     "ability": "用应用程序维护的 history 保存并重新提交对话。",
     "why": "两次独立调用不会自动共享此前的实验编号。",
@@ -19,6 +21,7 @@
   },
   {
     "tag": "v2-chat",
+    "ref": "teaching-cleanup/v2-chat",
     "title": "Stage 2 · 结构化消息",
     "ability": "把文本历史改为 system / user / assistant 消息。",
     "why": "需要明确区分消息身份，避免手工拼接的边界含糊。",
@@ -28,6 +31,7 @@
   },
   {
     "tag": "v3-tools",
+    "ref": "teaching-cleanup/v3-tools",
     "title": "Stage 3 · 工具调用",
     "ability": "让模型请求调用由 Python 实现的计算工具。",
     "why": "需要把数值计算交给可靠的外部程序执行。",
@@ -37,6 +41,7 @@
   },
   {
     "tag": "v4-agent-loop",
+    "ref": "teaching-cleanup/v4-agent-loop",
     "title": "Stage 4 · Agent 循环",
     "ability": "把工具结果重新加入上下文，让模型继续决定下一步。",
     "why": "多步骤任务需要反复观察执行反馈，并据此继续行动。",
@@ -46,6 +51,7 @@
   },
   {
     "tag": "v5-execution",
+    "ref": "teaching-cleanup/v5-execution",
     "title": "Stage 5 · 隔离执行",
     "ability": "在受限实验环境中读取 CSV、生成并执行代码、保存报告。",
     "why": "执行能力需要配合超时、迭代上限、目录限制和隔离边界。",

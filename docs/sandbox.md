@@ -1,10 +1,12 @@
 # 执行工具的安全边界
 
+本文对应 `teaching-cleanup/v5-execution`：原受限基线的精简参考。共享 v0—v5 标签保持原样；正在另行扩展的新版 Bash 能力暂不合入，待最终 v5 确定后再精简。
+
 v5 的 `tools.py` 集中放置 Bash 工具、参数校验、隔离后端、实验目录准备与产物导出；课堂上直接展示 `agent.py` 的决策循环。这里把执行限制单独写清楚，避免把“禁止几个命令”误当作沙箱。
 
 ## 使用方式
 
-宿主程序用临时目录建立独立实验工作区，只复制 `data/temperature.csv`。工具调用为 `run_bash(command, workspace, timeout=8)`。切换到 `v5-execution` 后运行 `python agent.py`，在 `$ ` 后输入任务。同一会话持续使用这个目录，下一轮可以读取或修改先前产物；Ctrl+D 或 Ctrl+C 结束会话。再次启动会得到新的实验目录和空白对话。
+宿主程序用临时目录建立独立实验工作区，只复制 `data/temperature.csv`。工具调用为 `run_bash(command, workspace, timeout=8)`。切换到 `teaching-cleanup/v5-execution` 后运行 `python agent.py`，在 `$ ` 后输入任务。同一会话持续使用这个目录，下一轮可以读取或修改先前产物；Ctrl+D 或 Ctrl+C 结束会话。再次启动会得到新的实验目录和空白对话。
 
 会话结束时对已有产物进行文件安全检查，安全导出到当前目录 `lab-runs/run-*/` 后清理临时目录。没有生成文件的普通问答也可正常结束。自由交互不强制生成 CSV 报告，不在运行时用固定答案验收任务；固定 CSV 的统计结果和报告由外部教师验证脚本与测试独立核对。检查文件是否安全与检查用户任务是否完成是不同问题，教师仍需结合工具反馈和实际文件判断。
 
@@ -25,6 +27,8 @@ PY
 ```
 
 这是一种刻意受限的 Bash 接口。`tools.py` 把上述**字面 Python here-document**转成等价的 `python3 -c SOURCE`，再让 Bash 用 `exec` 替换自身，避免 Bash 为 here-document 创建子进程和临时文件。显示、记录的工具参数保留原始命令。每次调用只有一个前台程序；不支持管道、后台、重定向或多个串接命令。
+
+后续扩展集中在 `tools.py`：用 `BASH` Schema 描述能力，`execute` 校验并分发，`run_bash` 承接执行与隔离；`seed` 和 `export_outputs` 管理目录准备与导出。保留直接函数边界，不引入额外框架。教师预检和真实录制默认解析 `teaching-cleanup/` Tag，录制须重新绑定对应快照后才用于说明本轮行为。
 
 ## 真正由操作系统执行的限制
 
@@ -66,7 +70,7 @@ docker pull python:3.12-slim
 
 ## 本轮验证与历史证据
 
-本轮移植后，在允许启动本机 macOS Seatbelt 的终端权限下运行隔离测试：**24 项通过、0 项跳过**。Docker 后端仍未实测。完整命令、执行环境与本轮其他验证见 [VALIDATION.md](../VALIDATION.md)。
+本轮移植后，在允许启动本机 macOS Seatbelt 的终端权限下运行隔离测试：**25 项通过、0 项跳过**，包含新增的 Ctrl+C 执行清理回归。Docker 后端仍未实测。完整命令、执行环境与本轮其他验证见 [VALIDATION.md](../VALIDATION.md)。
 
 下面保留重构前的详细实测记录，作为限制设计的历史证据：
 

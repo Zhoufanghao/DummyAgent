@@ -20,16 +20,16 @@ source ~/.config/api-keys/llm.env
 
 ## 六个独立版本
 
-先结束当前程序，再切换 Tag 并直接启动。例如：
+本轮精简快照使用独立 Tag 命名空间 `teaching-cleanup/<阶段ID>`；现有共享的 v0—v5 标签不改动。下表保留简短阶段 ID，实际切换时须加 `teaching-cleanup/` 前缀。先结束当前程序，再切换并直接启动。例如：
 
 ```bash
-git switch --detach v0-token
+git switch --detach teaching-cleanup/v0-token
 python agent.py
 ```
 
 程序用 `$ ` 等待输入，空白行跳过；Ctrl+D 正常结束，Ctrl+C 平稳退出。每版只有自由交互，不解析命令行参数或聊天内命令。要开始全新对话，结束后重新启动。
 
-| Tag | 课堂运行文件 | 该版机制 |
+| 阶段 ID | 课堂运行文件 | 该版机制 |
 |---|---|---|
 | v0-token | `agent.py` | 独立前缀续写、真实 logprobs 与候选概率；不保存历史 |
 | v1-memory | `agent.py` | 应用保存并重新提交文本 history |
@@ -38,7 +38,7 @@ python agent.py
 | v4-agent-loop | `agent.py`、`tools.py` | calculator；工具结果推动下一轮决策 |
 | v5-execution | `agent.py`、`tools.py` | Bash；共享隔离实验目录与产物导出 |
 
-将上面命令中的 Tag 替换为表中任意一项。v3 不会持续循环请求工具；多步任务用 v4。v5 只保留 Bash 工具。SDK 调用、history/messages 和循环直接写在对应 `agent.py` 中；教师脚本不参与课堂程序运行。
+将上面命令中 `teaching-cleanup/` 后的阶段 ID 替换为表中任意一项。v3 不会持续循环请求工具；多步任务用 v4。v5 只保留 Bash 工具。这里的 v5 是原受限基线的精简参考；另行开发中的新版 Bash 能力待最终 v5 确定后再合入、精简。SDK 调用、history/messages 和循环直接写在对应 `agent.py` 中；教师脚本不参与课堂程序运行。
 
 默认 `TEMPERATURE = 0`；v0 的 `TOKEN_STEPS = 12`。温度对照直接修改 v0 顶部的 `TEMPERATURE`，比较 0 与 0.8，结束后改回 0 再切换版本。API 单次超时 45 秒，最多重试 1 次；v4/v5 的 `MAX_ITERATIONS = 100` 是每个用户任务的上限，达到上限表示停止，不能据此认定任务完成。
 
@@ -60,13 +60,13 @@ git switch codex/teaching-cleanup
 
 在最终分支运行 `python build_viewer.py`，再双击生成的 `web/index.html`，可离线展示六阶段源码、差异和真实轨迹。页面是本地生成物，切换六个教学 Tag 时不会被旧页面覆盖。轨迹明确标记 **REPLAY**，只展示已发生的运行，不调用 API、不执行历史工具、不重建报告；网络失败不会自动切换。现场需要文件时，可打开已核实的 [examples/final-report.md](examples/final-report.md)。
 
-新版本彩排与真实 API 录制使用独立教师脚本：
+新版本彩排与真实 API 录制使用独立教师脚本，默认解析 `teaching-cleanup/` 下的六个教学 Tag：
 
 ```bash
 python verify_live.py
 ```
 
-录制需核对模型、时间、源码 SHA 和真实输入，不能把旧输出当作新代码的验证。重构前的 Tag 原样保留在 `archive/2026-10-15/pre-cleanup/<tag>`，对应旧录制原样保留在 `recordings/archive/2026-10-15/pre-cleanup/`；此前 `archive/2026-10-15/<tag>` 与 `recordings/archive/2026-10-15/` 的第一代归档继续保留。当前课堂录制放在 `recordings/`。
+录制需绑定到本轮命名空间中的真实快照，核对模型、时间、源码 SHA 和真实输入；重新绑定后的结果以验证记录为准，不能把旧输出当作新代码的验证。重构前的 Tag 原样保留在 `archive/2026-10-15/pre-cleanup/<tag>`，对应旧录制原样保留在 `recordings/archive/2026-10-15/pre-cleanup/`；此前 `archive/2026-10-15/<tag>` 与 `recordings/archive/2026-10-15/` 的第一代归档继续保留。当前课堂录制放在 `recordings/`。
 
 ## 执行隔离
 
@@ -74,7 +74,7 @@ v5 优先使用本地已有 Docker 镜像，否则 macOS 使用 Seatbelt；没�
 
 同一会话保持一个临时实验目录，各轮可继续读取或修改先前产物。结束时先做文件安全检查，将已有非空产物导出到当前目录的 `lab-runs/run-*/`，再清理临时目录。无产物的问答也能正常结束。
 
-`tools.py` 包含参数校验、隔离后端、目录准备与安全导出。保留禁网、数据只读、文件白名单、超时、输出与文件大小限制；仅允许写 `analysis.py`、`result.json`、`report.md`。支持的命令见工具 Schema。接口不支持管道、shell 重定向、cd 和后台任务；字面 Python heredoc 转成等价 `python3 -c`，避免 Bash 创建子进程。
+`tools.py` 包含参数校验、隔离后端、目录准备与安全导出。后续 Bash 扩展集中修改 `BASH` Schema、`execute`、`run_bash`，目录生命周期由 `seed`、`export_outputs` 负责；保持这几个直接可读的函数边界，不引入额外框架。保留禁网、数据只读、文件白名单、超时、输出与文件大小限制；仅允许写 `analysis.py`、`result.json`、`report.md`。支持的命令见工具 Schema。接口不支持管道、shell 重定向、cd 和后台任务；字面 Python heredoc 转成等价 `python3 -c`，避免 Bash 创建子进程。
 
 命令过滤之外还必须有 OS 隔离，详见 [安全边界与历史实测](docs/sandbox.md)。Codex 嵌套沙箱可能阻止 Seatbelt 启动；此时在普通终端预检或展示真实轨迹，不解除隔离。新版本实际隔离验证的通过、失败和跳过分别记录在 [VALIDATION.md](VALIDATION.md)。
 

@@ -25,6 +25,7 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent
 STAGES = ("v0-token", "v1-memory", "v2-chat", "v3-tools", "v4-agent-loop", "v5-execution")
+STAGE_REFS = {stage: f"teaching-cleanup/{stage}" for stage in STAGES}
 SCENARIOS = {
     "v0-token": ("牛顿第二定律告诉我们，", "热力学第一定律告诉我们，"),
     "v1-memory": ("我的实验编号是 A102，请记住。", "我的实验编号是什么？"),
@@ -55,12 +56,12 @@ def stage_refs():
     if (not isinstance(refs, dict) or any(key not in STAGES or not isinstance(value, str)
                                          or not value for key, value in refs.items())):
         raise ValueError("DUMMY_AGENT_STAGE_REFS 必须是六个阶段到非空 Git ref 的 JSON 对象")
-    return refs
+    return {**STAGE_REFS, **refs}
 
 
 def materialize(repo, stage, destination):
     """仅导出指定的真实提交；不使用工作区冒充已提交阶段。"""
-    ref = stage_refs().get(stage, stage)
+    ref = stage_refs()[stage]
     commit = git(repo, "rev-parse", f"{ref}^{{commit}}").strip()
     archive = git(repo, "archive", commit, binary=True)
     destination = Path(destination).resolve()

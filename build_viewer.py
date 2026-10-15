@@ -45,9 +45,9 @@ def read_stages(metadata):
     if (not isinstance(stages, list) or not all(isinstance(s, dict) for s in stages)
             or [s.get("tag") for s in stages] != list(TAGS)):
         raise BuildError("stages.json 必须按顺序包含全部六个规定的 Git tags。")
-    required = ("title", "ability", "why", "can_do", "focus", "minutes")
+    required = ("ref", "title", "ability", "why", "can_do", "focus", "minutes")
     if any(not isinstance(s.get(k), str) for s in stages for k in required):
-        raise BuildError("每个阶段都必须包含 title / ability / why / can_do / focus / minutes 文本。")
+        raise BuildError("每个阶段都必须包含 ref / title / ability / why / can_do / focus / minutes 文本。")
     return stages
 
 
@@ -61,14 +61,14 @@ def load_versions(repo, stages, source_files=SOURCE_FILES):
                                          for k, v in refs.items())):
         raise BuildError("DUMMY_AGENT_STAGE_REFS 只能指定六个教学阶段及非空 Git ref。")
     existing = set(git(repo, "tag", "--list").splitlines())
-    missing = [s["tag"] for s in stages if s["tag"] not in existing and s["tag"] not in refs]
+    missing = [s["ref"] for s in stages if s["ref"] not in existing and s["tag"] not in refs]
     if missing:
         raise BuildError("缺少 Git tags：" + ", ".join(missing)
                          + "。请逐阶段验证、提交并创建 tag 后再生成网页。")
     versions = []
     for stage in stages:
         tag = stage["tag"]
-        ref = refs.get(tag, tag)
+        ref = refs.get(tag, stage["ref"])
         paths = set(git(repo, "ls-tree", "-r", "--name-only", ref).splitlines())
         if "agent.py" not in paths:
             raise BuildError(f"{tag} 中没有 agent.py，无法展示同一程序的演进。")
@@ -77,7 +77,7 @@ def load_versions(repo, stages, source_files=SOURCE_FILES):
             for path in source_files if path in paths
         }
         versions.append({
-            **stage, "sha": git(repo, "rev-parse", f"{ref}^{{commit}}").strip(),
+            **stage, "ref": ref, "sha": git(repo, "rev-parse", f"{ref}^{{commit}}").strip(),
             "sources": sources,
         })
     return versions
@@ -241,7 +241,7 @@ def render_stage(repo, stage, previous, index, source_files):
     if stage["tag"] == "v2-chat":
         extra += ('<p class="page-note">公开模板辅助演示：在仓库根目录运行 '
                   '<code>python chat_template_demo.py</code>。该历史V3模板不代表当前Flash托管API内部格式。</p>')
-    command = f"git switch --detach {stage['tag']}\npython agent.py"
+    command = f"git switch --detach {stage['ref']}\npython agent.py"
     hidden = " hidden" if index else ""
     return f'''<article class="stage" id="{escape(stage['tag'])}" data-stage="{escape(stage['tag'])}"{hidden}>
       <div class="eyebrow">{escape(stage['minutes'])} <span>同一个 agent.py · 第 {index + 1} / 6 个版本</span></div>

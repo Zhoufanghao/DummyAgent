@@ -69,7 +69,7 @@ class ViewerTests(unittest.TestCase):
                     (repo / "tools.py").unlink()
                 git("add", "-A")
                 git("commit", "-qm", f"Stage {index}")
-                git("tag", tag)
+                git("tag", stages[index]["ref"])
             (repo / "agent.py").write_text("WORKING TREE MUST NOT APPEAR\n", encoding="utf-8")
             (repo / "recordings").mkdir()
             (repo / "recordings" / "v0-token.json").write_text(json.dumps({
@@ -85,7 +85,7 @@ class ViewerTests(unittest.TestCase):
             self.assertIn('tagged-0', page)
             self.assertIn('tagged-5', page)
             self.assertNotIn('WORKING TREE MUST NOT APPEAR', page)
-            self.assertIn(git("rev-parse", "v2-chat").strip()[:12], page)
+            self.assertIn(git("rev-parse", "teaching-cleanup/v2-chat").strip()[:12], page)
             self.assertIn('&lt;script&gt;THIS IS A RECORDING&lt;/script&gt;', page)
             self.assertIn('&lt;img src=x', page)
             self.assertNotIn('<img src=x', page)
@@ -98,7 +98,7 @@ class ViewerTests(unittest.TestCase):
             self.assertEqual(page.count('REPLAY · 已保存输出'), 6)
             self.assertIn('white-space:pre-wrap', page)
             for tag in viewer.TAGS:
-                self.assertIn(f'git switch --detach {tag}\npython agent.py</code>', page)
+                self.assertIn(f'git switch --detach teaching-cleanup/{tag}\npython agent.py</code>', page)
             self.assertIn('直接进入自由交互', page)
             self.assertIn('Ctrl+D', page)
             for removed in ('run_stage.py', 'common.py', 'sandbox.py', 'lab.py', '--demo', ':quit', ':reset'):
@@ -118,8 +118,10 @@ class ViewerTests(unittest.TestCase):
             with patch.dict(os.environ, {"DUMMY_AGENT_STAGE_REFS": json.dumps({"v0-token": candidate})}):
                 candidate_page = viewer.build(repo, metadata, repo / "web/candidate.html").read_text()
             self.assertIn('WORKING TREE MUST NOT APPEAR', candidate_page)
+            self.assertIn(f'git switch --detach {candidate}\npython agent.py</code>', candidate_page)
+            self.assertIn('git switch --detach teaching-cleanup/v1-memory\npython agent.py</code>', candidate_page)
             self.assertIn('历史记录：此输出不对应当前展示的源码', candidate_page)
-            self.assertIn('tagged-0', git("show", "v0-token:agent.py"))
+            self.assertIn('tagged-0', git("show", "teaching-cleanup/v0-token:agent.py"))
 
     def test_invalid_candidate_refs_are_rejected(self):
         for mapping in ('not-json', '[]', '{"unknown":"HEAD"}', '{"v0-token":3}'):

@@ -28,6 +28,13 @@ def token_events(reason="length"):
 
 
 class RecordingTests(unittest.TestCase):
+    def test_namespaced_defaults_remain_under_partial_candidate_mapping(self):
+        with patch.dict(os.environ, {"DUMMY_AGENT_STAGE_REFS": '{"v0-token":"candidate-fixture"}'}):
+            refs = verify_live.stage_refs()
+        self.assertEqual(refs["v0-token"], "candidate-fixture")
+        self.assertEqual(refs["v5-execution"], "teaching-cleanup/v5-execution")
+        self.assertEqual(set(refs), set(verify_live.STAGES))
+
     def test_request_is_snapshot_and_endpoints_are_distinct(self):
         class Response:
             def model_dump(self, **kwargs):

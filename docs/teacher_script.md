@@ -8,13 +8,13 @@
 
 本课不要求学生抄完代码。每次先看结果，再定位新增的几行。下文引号内可直接照读，其余是教师操作。PPT 的逐页安排见 [slides_outline.md](slides_outline.md)，来源与模型边界见 [sources.md](sources.md)。
 
-六个 Tag 各自是独立教学程序。统一用 `git switch --detach <tag>` 切换，再运行 `python agent.py`；所有示例都在程序的 `$ ` 后手工输入，没有命令行参数或内置固定演示。空白行跳过，Ctrl+D 结束，Ctrl+C 平稳退出。v0 每次续写相互独立；v1—v5 保存当前会话的上下文，v5 还保留同一会话的实验文件。要开始新对话就结束后重新启动；切换 Tag 前先结束当前程序。课堂结束用 `git switch codex/teaching-cleanup` 回到最终版。
+本讲稿的六阶段对应独立 Tag `teaching-cleanup/<阶段ID>`，文中表格和口头讲解仍用简短阶段 ID。共享 v0—v5 标签不改动。六个教学 Tag 各自是独立程序，统一用 `git switch --detach teaching-cleanup/<阶段ID>` 切换，再运行 `python agent.py`；所有示例都在程序的 `$ ` 后手工输入，没有命令行参数或内置固定演示。空白行跳过，Ctrl+D 结束，Ctrl+C 平稳退出。v0 每次续写相互独立；v1—v5 保存当前会话的上下文，v5 还保留同一会话的实验文件。要开始新对话就结束后重新启动；切换 Tag 前先结束当前程序。课堂结束用 `git switch codex/teaching-cleanup` 回到本轮参考版。这里的 v5 是原受限基线的精简参考；另行扩展的新 v5 待功能确定后再合入、精简。
 
 ## 上课前：一次完整彩排
 
 1. 按 README 完成 Python 环境、SDK 与执行隔离环境配置。密钥只在教师机器的环境中加载；不要把环境文件、环境变量值或终端完整环境投屏。
 2. 在项目根目录加载密钥：`source ~/.config/api-keys/llm.env`。如该文件仅赋值而未 export，应按 README 的方式导出环境；不打印密钥验证。
-3. 运行 `python verify_live.py`，由独立教师脚本导出六 Tag、驱动真实交互、保存录制并独立检查 CSV 报告。课堂 `agent.py` 不导入录制功能。每次源码变化后重新录制；先确认本次验证实际通过，不能仅看文件存在。
+3. 运行 `python verify_live.py`，由独立教师脚本默认导出 `teaching-cleanup/` 命名空间中的六 Tag、驱动真实交互、保存录制并独立检查 CSV 报告。录制须重新绑定到这些真实快照，结果以本次验证为准。课堂 `agent.py` 不导入录制功能。每次源码变化后重新录制；先确认本次验证实际通过，不能仅看文件存在。
 4. 手工切到六版，各用 `python agent.py` 检查任意前缀、两轮对话、自定计算和 v5 隔离目录内的后续任务。确认空白行、Ctrl+D 和 Ctrl+C 的行为；要清空对话就重新启动。v3 只做一次工具请求与回填后的回答，复杂多步任务用 v4。
 5. 检查录制的模型名、时间、源码 SHA 与真实输入；在网页离线查看六份轨迹。重构前录制原样保留在 `recordings/archive/2026-10-15/pre-cleanup/`，对应 Tag 为 `archive/2026-10-15/pre-cleanup/<tag>`；第一代归档继续保留。旧版本输出不能证明精简版本已通过。REPLAY 只展示已发生的结果，不执行工具、不重新创建报告；开场要打开磁盘上的报告时，先保留彩排成品。
 6. 运行 `python preflight.py` 与 `python build_viewer.py`，打开 `web/index.html`。确认六阶段能显示 `agent.py`、需要时的 `tools.py`、相邻 Tag 差异及对应真实输出；字体放大到教室后排能读清。预检和外部录制脚本都不是学生运行 Agent 的依赖。
@@ -46,7 +46,7 @@
 **00:40—02:40，运行或重放完整版本。**
 
 ```bash
-git switch --detach v5-execution
+git switch --detach teaching-cleanup/v5-execution
 python agent.py
 ```
 
@@ -77,7 +77,7 @@ python agent.py
 **05:00—07:00，演示 token 记录。**
 
 ```bash
-git switch --detach v0-token
+git switch --detach teaching-cleanup/v0-token
 python agent.py
 ```
 
@@ -118,7 +118,7 @@ python agent.py
 **11:00—12:30，先展示没有相关历史的请求。**
 
 ```bash
-git switch --detach v1-memory
+git switch --detach teaching-cleanup/v1-memory
 python agent.py
 ```
 
@@ -179,7 +179,7 @@ python chat_template_demo.py
 **20:00—21:20，形成命令行对话。**
 
 ```bash
-git switch --detach v2-chat
+git switch --detach teaching-cleanup/v2-chat
 python agent.py
 ```
 
@@ -208,7 +208,7 @@ python agent.py
 **25:00—27:00，运行一次工具演示。**
 
 ```bash
-git switch --detach v3-tools
+git switch --detach teaching-cleanup/v3-tools
 python agent.py
 ```
 
@@ -263,7 +263,7 @@ raise RuntimeError("达到最大轮数，任务未确认完成")
 **32:00—33:30，运行依赖前一步结果的计算。**
 
 ```bash
-git switch --detach v4-agent-loop
+git switch --detach teaching-cleanup/v4-agent-loop
 python agent.py
 ```
 
@@ -281,12 +281,12 @@ python agent.py
 
 展示实际工具策略的四项：执行超时、最大循环次数、实验工作目录、危险操作拒绝。指出隔离由操作系统或容器实现；仅设置 `cwd` 或检查字符串不能防止所有越界访问。执行环境不可用时停止执行演示，使用已核实录制。
 
-切换到 v5 后仍只运行 `python agent.py`，整个会话使用同一个隔离实验目录。可以先要求“查看 CSV 的列名”，再要求“读取前五行”，随后继续生成或修改允许的文件。Ctrl+D 结束时安全导出已有产物。温度报告是手工输入的一个任务，其他任务也能正常执行；统计值由教师独立核对，程序始终保留文件安全检查。v5 仅有 Bash 工具，隔离、目录准备和导出集中在 `tools.py`，不保留 calculator 或早期版本入口。
+切换到 v5 后仍只运行 `python agent.py`，整个会话使用同一个隔离实验目录。可以先要求“查看 CSV 的列名”，再要求“读取前五行”，随后继续生成或修改允许的文件。Ctrl+D 结束时安全导出已有产物。温度报告是手工输入的一个任务，其他任务也能正常执行；统计值由教师独立核对，程序始终保留文件安全检查。本轮 v5 参考版仅有 Bash 工具，隔离、目录准备和导出集中在 `tools.py`，不保留 calculator 或早期版本入口。后续 Bash 能力通过 `BASH` Schema、`execute`、`run_bash` 扩展，目录生命周期保留 `seed`、`export_outputs` 两个直接函数边界；无需引入框架。
 
 **34:50—37:40，回到温度报告任务。**
 
 ```bash
-git switch --detach v5-execution
+git switch --detach teaching-cleanup/v5-execution
 python agent.py
 ```
 
