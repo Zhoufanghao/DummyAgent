@@ -95,6 +95,8 @@ class ViewerTests(unittest.TestCase):
             self.assertIn('API 返回模型：returned-model', page)
             self.assertIn('真实 API 调用录制', page)
             self.assertEqual(page.count('class="copy-command"'), 6)
+            self.assertEqual(page.count('REPLAY · 已保存输出'), 6)
+            self.assertIn('white-space:pre-wrap', page)
             for tag in viewer.TAGS:
                 self.assertIn(f'git switch --detach {tag}\npython agent.py</code>', page)
             self.assertIn('直接进入自由交互', page)

@@ -1,0 +1,318 @@
+{
+  "kind": "live-api-recording",
+  "stage": "v3-tools",
+  "recorded_at": "2026-10-15T12:55:15.452794+00:00",
+  "model_requested": "deepseek-flash",
+  "mode": "interactive",
+  "settings": {
+    "temperature": 0
+  },
+  "inputs": [
+    "请用calculator计算 (123.4 * 56.7) / 8.9，并简短汇报结果。",
+    "刚才的计算结果是什么？"
+  ],
+  "source_commit": "9f8eb5456a2eab5269486369dce33693760ddcf3",
+  "source_sha256": "bed940b2603439f46e3503ea4fa67e2ec558f4c9d44318f212593c9bddd6bc4c",
+  "runtime_sha256": {
+    "agent.py": "bed940b2603439f46e3503ea4fa67e2ec558f4c9d44318f212593c9bddd6bc4c",
+    "tools.py": "66d03f82c2898754df28927730ff1443534d1b7fac6508c5badc6682566070b1",
+    "data/temperature.csv": "72011278878dc93bd786d79d5a47b8b9741ff2945b7fb0b14ea6d2dad7faaa00"
+  },
+  "events": [
+    {
+      "endpoint": "chat.completions.create",
+      "request": {
+        "model": "deepseek-flash",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是中文计算助手，需要计算时使用calculator，以实际工具结果为准。"
+          },
+          {
+            "role": "user",
+            "content": "请用calculator计算 (123.4 * 56.7) / 8.9，并简短汇报结果。"
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "calculator",
+              "description": "计算有限数值的简单四则运算，可用括号和小整数幂。",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "expression": {
+                    "type": "string",
+                    "description": "算术表达式，如(12+3)*4"
+                  }
+                },
+                "required": [
+                  "expression"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ],
+        "tool_choice": "auto",
+        "temperature": 0,
+        "max_tokens": 500,
+        "extra_body": {
+          "thinking": {
+            "type": "disabled"
+          }
+        }
+      },
+      "response": {
+        "id": "17cb8b9d-1433-43e3-b443-d75fbdef2a13",
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "logprobs": null,
+            "message": {
+              "content": "",
+              "refusal": null,
+              "role": "assistant",
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "tool_calls": [
+                {
+                  "id": "call_00_YZ5MHEdDYjhYItnoKVZI2040",
+                  "function": {
+                    "arguments": "{\"expression\": \"(123.4 * 56.7) / 8.9\"}",
+                    "name": "calculator"
+                  },
+                  "type": "function",
+                  "index": 0
+                }
+              ]
+            }
+          }
+        ],
+        "created": 1792068914,
+        "model": "deepseek-flash",
+        "object": "chat.completion",
+        "moderation": null,
+        "service_tier": null,
+        "system_fingerprint": "aeb56401ca74e127821c4f9126dcb669",
+        "usage": {
+          "completion_tokens": 50,
+          "prompt_tokens": 333,
+          "total_tokens": 383,
+          "completion_tokens_details": null,
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cache_write_tokens": null,
+            "cached_tokens": 128
+          },
+          "prompt_cache_hit_tokens": 128,
+          "prompt_cache_miss_tokens": 205
+        }
+      },
+      "elapsed_seconds": 0.647
+    },
+    {
+      "endpoint": "chat.completions.create",
+      "request": {
+        "model": "deepseek-flash",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是中文计算助手，需要计算时使用calculator，以实际工具结果为准。"
+          },
+          {
+            "role": "user",
+            "content": "请用calculator计算 (123.4 * 56.7) / 8.9，并简短汇报结果。"
+          },
+          {
+            "content": "",
+            "role": "assistant",
+            "tool_calls": [
+              {
+                "id": "call_00_YZ5MHEdDYjhYItnoKVZI2040",
+                "function": {
+                  "arguments": "{\"expression\": \"(123.4 * 56.7) / 8.9\"}",
+                  "name": "calculator"
+                },
+                "type": "function",
+                "index": 0
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "call_00_YZ5MHEdDYjhYItnoKVZI2040",
+            "content": "{\"ok\": true, \"value\": 786.1550561797753}"
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 500,
+        "extra_body": {
+          "thinking": {
+            "type": "disabled"
+          }
+        }
+      },
+      "response": {
+        "id": "28546936-c666-4c6a-b2bd-7665e0963257",
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "index": 0,
+            "logprobs": null,
+            "message": {
+              "content": "计算结果：(123.4 × 56.7) ÷ 8.9 ≈ **786.1551**。",
+              "refusal": null,
+              "role": "assistant",
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "tool_calls": null
+            }
+          }
+        ],
+        "created": 1792068914,
+        "model": "deepseek-flash",
+        "object": "chat.completion",
+        "moderation": null,
+        "service_tier": null,
+        "system_fingerprint": "aeb56401ca74e127821c4f9126dcb669",
+        "usage": {
+          "completion_tokens": 24,
+          "prompt_tokens": 125,
+          "total_tokens": 149,
+          "completion_tokens_details": null,
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cache_write_tokens": null,
+            "cached_tokens": 0
+          },
+          "prompt_cache_hit_tokens": 0,
+          "prompt_cache_miss_tokens": 125
+        }
+      },
+      "elapsed_seconds": 0.575
+    },
+    {
+      "endpoint": "chat.completions.create",
+      "request": {
+        "model": "deepseek-flash",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是中文计算助手，需要计算时使用calculator，以实际工具结果为准。"
+          },
+          {
+            "role": "user",
+            "content": "请用calculator计算 (123.4 * 56.7) / 8.9，并简短汇报结果。"
+          },
+          {
+            "content": "",
+            "role": "assistant",
+            "tool_calls": [
+              {
+                "id": "call_00_YZ5MHEdDYjhYItnoKVZI2040",
+                "function": {
+                  "arguments": "{\"expression\": \"(123.4 * 56.7) / 8.9\"}",
+                  "name": "calculator"
+                },
+                "type": "function",
+                "index": 0
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "call_00_YZ5MHEdDYjhYItnoKVZI2040",
+            "content": "{\"ok\": true, \"value\": 786.1550561797753}"
+          },
+          {
+            "role": "assistant",
+            "content": "计算结果：(123.4 × 56.7) ÷ 8.9 ≈ **786.1551**。"
+          },
+          {
+            "role": "user",
+            "content": "刚才的计算结果是什么？"
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "calculator",
+              "description": "计算有限数值的简单四则运算，可用括号和小整数幂。",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "expression": {
+                    "type": "string",
+                    "description": "算术表达式，如(12+3)*4"
+                  }
+                },
+                "required": [
+                  "expression"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ],
+        "tool_choice": "auto",
+        "temperature": 0,
+        "max_tokens": 500,
+        "extra_body": {
+          "thinking": {
+            "type": "disabled"
+          }
+        }
+      },
+      "response": {
+        "id": "111882c0-0b8b-4869-be31-9295f2e08eb9",
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "index": 0,
+            "logprobs": null,
+            "message": {
+              "content": "刚才的计算结果是：**(123.4 × 56.7) ÷ 8.9 ≈ 786.1551**（精确值 786.1550561797753）。",
+              "refusal": null,
+              "role": "assistant",
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "tool_calls": null
+            }
+          }
+        ],
+        "created": 1792068915,
+        "model": "deepseek-flash",
+        "object": "chat.completion",
+        "moderation": null,
+        "service_tier": null,
+        "system_fingerprint": "aeb56401ca74e127821c4f9126dcb669",
+        "usage": {
+          "completion_tokens": 38,
+          "prompt_tokens": 444,
+          "total_tokens": 482,
+          "completion_tokens_details": null,
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cache_write_tokens": null,
+            "cached_tokens": 256
+          },
+          "prompt_cache_hit_tokens": 256,
+          "prompt_cache_miss_tokens": 188
+        }
+      },
+      "elapsed_seconds": 0.663
+    }
+  ],
+  "validation": {
+    "scenario": "interactive",
+    "inputs": 2
+  },
+  "transcript": "[实时 LIVE · v3-tools] model=deepseek-flash · source=9f8eb5456a2eab5269486369dce33693760ddcf3\nTool Schema → [{\"type\": \"function\", \"function\": {\"name\": \"calculator\", \"description\": \"计算有限数值的简单四则运算，可用括号和小整数幂。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"expression\": {\"type\": \"string\", \"description\": \"算术表达式，如(12+3)*4\"}}, \"required\": [\"expression\"], \"additionalProperties\": false}}}]\n$ 请用calculator计算 (123.4 * 56.7) / 8.9，并简短汇报结果。\nLLM → Tool Call： calculator {\"expression\": \"(123.4 * 56.7) / 8.9\"}\nPython Function → Tool Result： {'ok': True, 'value': 786.1550561797753}\nLLM → 最终回答： 计算结果：(123.4 × 56.7) ÷ 8.9 ≈ **786.1551**。\n$ 刚才的计算结果是什么？\nLLM → 最终回答： 刚才的计算结果是：**(123.4 × 56.7) ÷ 8.9 ≈ 786.1551**（精确值 786.1550561797753）。\n$ ^D\n\n"
+}

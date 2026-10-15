@@ -263,7 +263,7 @@ def render_stage(repo, stage, previous, index, source_files):
       <div class="code-toolbar"><label>源码文件 <select class="file-selector" aria-label="选择源码文件">{options}</select></label>
         <span class="legend"><i class="added"></i> 新增 <i class="removed"></i> 删除 <i class="modified"></i> 修改后的行</span></div>
       {''.join(panels)}
-      <section class="recording"><h2>示例运行结果 <span class="replay-badge">已保存输出</span></h2>{render_recording(repo, stage['tag'], version=stage)}{extra}</section>
+      <section class="recording"><h2>示例运行结果 <span class="replay-badge">REPLAY · 已保存输出</span></h2>{render_recording(repo, stage['tag'], version=stage)}{extra}</section>
       <footer>统计仅覆盖本页的教学源码。替换一行计为删除一行、增加一行。页面内容来自 Git tag；本页不调用 API，也不执行模型生成的命令。</footer>
     </article>'''
 

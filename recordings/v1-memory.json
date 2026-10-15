@@ -1,0 +1,109 @@
+{
+  "kind": "live-api-recording",
+  "stage": "v1-memory",
+  "recorded_at": "2026-10-15T12:55:12.450683+00:00",
+  "model_requested": "deepseek-flash",
+  "mode": "interactive",
+  "settings": {
+    "temperature": 0
+  },
+  "inputs": [
+    "我的实验编号是 A102，请记住。",
+    "我的实验编号是什么？"
+  ],
+  "source_commit": "95da778bcafbe3920caabf3162684d7679192271",
+  "source_sha256": "661ace0bc6cac4affede78053c4e0bc24f6c3811eff85b328e33ae1c2c44ec4c",
+  "runtime_sha256": {
+    "agent.py": "661ace0bc6cac4affede78053c4e0bc24f6c3811eff85b328e33ae1c2c44ec4c",
+    "data/temperature.csv": "72011278878dc93bd786d79d5a47b8b9741ff2945b7fb0b14ea6d2dad7faaa00"
+  },
+  "events": [
+    {
+      "endpoint": "completions.create",
+      "request": {
+        "model": "deepseek-flash",
+        "prompt": "请续写下面的中文对话，只回答最后一个问题；不知道的信息请说不知道。\n用户：我的实验编号是 A102，请记住。\n助手：",
+        "max_tokens": 120,
+        "temperature": 0,
+        "stop": [
+          "\n用户："
+        ]
+      },
+      "response": {
+        "id": "406c390c-1b39-4a71-8c60-804eeb22fcbf",
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "index": 0,
+            "logprobs": null,
+            "text": "好的，已记住实验编号 A102。"
+          }
+        ],
+        "created": 1792068911,
+        "model": "deepseek-flash",
+        "object": "text_completion",
+        "system_fingerprint": "aeb56401ca74e127821c4f9126dcb669",
+        "usage": {
+          "completion_tokens": 11,
+          "prompt_tokens": 33,
+          "total_tokens": 44,
+          "completion_tokens_details": null,
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cache_write_tokens": null,
+            "cached_tokens": 0
+          },
+          "prompt_cache_hit_tokens": 0,
+          "prompt_cache_miss_tokens": 33
+        }
+      },
+      "elapsed_seconds": 0.739
+    },
+    {
+      "endpoint": "completions.create",
+      "request": {
+        "model": "deepseek-flash",
+        "prompt": "请续写下面的中文对话，只回答最后一个问题；不知道的信息请说不知道。\n用户：我的实验编号是 A102，请记住。\n助手：好的，已记住实验编号 A102。\n用户：我的实验编号是什么？\n助手：",
+        "max_tokens": 120,
+        "temperature": 0,
+        "stop": [
+          "\n用户："
+        ]
+      },
+      "response": {
+        "id": "adc40fcd-55a2-439e-ac79-2995b393e7de",
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "index": 0,
+            "logprobs": null,
+            "text": "A102。"
+          }
+        ],
+        "created": 1792068912,
+        "model": "deepseek-flash",
+        "object": "text_completion",
+        "system_fingerprint": "aeb56401ca74e127821c4f9126dcb669",
+        "usage": {
+          "completion_tokens": 5,
+          "prompt_tokens": 51,
+          "total_tokens": 56,
+          "completion_tokens_details": null,
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cache_write_tokens": null,
+            "cached_tokens": 0
+          },
+          "prompt_cache_hit_tokens": 0,
+          "prompt_cache_miss_tokens": 51
+        }
+      },
+      "elapsed_seconds": 0.917
+    }
+  ],
+  "validation": {
+    "scenario": "interactive",
+    "inputs": 2
+  },
+  "transcript": "[实时 LIVE · v1-memory] model=deepseek-flash · source=95da778bcafbe3920caabf3162684d7679192271\n$ 我的实验编号是 A102，请记住。\n提交给API的文本：'请续写下面的中文对话，只回答最后一个问题；不知道的信息请说不知道。\\n用户：我的实验编号是 A102，请记住。\\n助手：'\n助手：好的，已记住实验编号 A102。\n$ 我的实验编号是什么？\n提交给API的文本：'请续写下面的中文对话，只回答最后一个问题；不知道的信息请说不知道。\\n用户：我的实验编号是 A102，请记住。\\n助手：好的，已记住实验编号 A102。\\n用户：我的实验编号是什么？\\n助手：'\n助手：A102。\n$ ^D\n\n"
+}

@@ -144,7 +144,7 @@ def validate_events(stage, events, questions):
                 raise ValueError("v0缺少真实token概率")
         return
     if stage == "v1-memory":
-        first = events[0]["response"]["choices"][0]["text"]
+        first = events[0]["response"]["choices"][0]["text"].strip()
         if (len(events) != 2 or questions[0] not in events[1]["request"]["prompt"]
                 or first not in events[1]["request"]["prompt"]):
             raise ValueError("v1第二轮未提交双方历史")
