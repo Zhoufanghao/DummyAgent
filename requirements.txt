@@ -1,1 +1,2 @@
 openai>=1.60,<3
+prompt_toolkit>=3.0.52,<4

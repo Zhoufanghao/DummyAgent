@@ -2,18 +2,19 @@
 import json
 import os
 from openai import OpenAI
+from prompt_toolkit import prompt
 
 MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-flash")
 TEMPERATURE = 0
 CALCULATOR_TOOL = {"type": "function", "function": {
     "name": "calculator", "description": "计算算术表达式。",
     "parameters": {"type": "object", "properties": {
-        "expression": {"type": "string", "description": "算术表达式，如(12+3)*4；^或**表示乘方"}},
+        "expression": {"type": "string", "description": "算术表达式，如(12+3)*4；乘方使用**"}},
         "required": ["expression"]}}}
 
 
 def calculator(expression):
-    return eval(expression.replace("^", "**"))
+    return eval(expression)
 
 
 def main():
@@ -21,7 +22,7 @@ def main():
                     base_url="https://api.deepseek.com/beta", timeout=45, max_retries=1)
     messages = [{"role": "system", "content": "你是中文计算助手，需要计算时使用calculator，以实际工具结果为准。"}]
     while True:
-        task = input("$ ")
+        task = prompt("$ ")
         if not task.strip():
             continue
         messages.append({"role": "user", "content": task})

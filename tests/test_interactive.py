@@ -72,7 +72,7 @@ def run_agent(version, inputs=(), replies=None, bash_output="fixture bash output
         stack.enter_context(contextlib.redirect_stdout(output))
         stack.enter_context(patch.dict(os.environ, {"DEEPSEEK_API_KEY": "fixture-key"}))
         sdk = stack.enter_context(patch.object(module, "OpenAI", return_value=client))
-        keyboard = stack.enter_context(patch("builtins.input", side_effect=[*inputs, EOFError()]))
+        keyboard = stack.enter_context(patch.object(module, "prompt", side_effect=[*inputs, EOFError()]))
         bash = None
         if version == 5:
             bash = stack.enter_context(patch.object(module, "run_bash", return_value=bash_output))
@@ -97,7 +97,7 @@ class InteractiveTests(unittest.TestCase):
                         imported = [node.module.split(".")[0]]
                     else:
                         continue
-                    self.assertLessEqual(set(imported), sys.stdlib_module_names | {"openai"})
+                    self.assertLessEqual(set(imported), sys.stdlib_module_names | {"openai", "prompt_toolkit"})
                 module = load_agent(version)
                 for name in ("cli", "parse_args", "execute", "agent_loop", "MAX_ITERATIONS"):
                     self.assertFalse(hasattr(module, name))
@@ -134,7 +134,7 @@ class InteractiveTests(unittest.TestCase):
                     sdk = Mock(return_value=client)
                     with patch.dict(sys.modules, {"openai": NS(OpenAI=sdk)}), \
                             patch.dict(os.environ, {"DEEPSEEK_API_KEY": "fixture-key"}), \
-                            patch("builtins.input", side_effect=ending), contextlib.redirect_stdout(io.StringIO()):
+                            patch("prompt_toolkit.prompt", side_effect=ending), contextlib.redirect_stdout(io.StringIO()):
                         runpy.run_path(str(ROOT / f"agent_v{version}.py"), run_name="__main__")
                     self.assertEqual(requests, [])
 
@@ -145,7 +145,7 @@ class InteractiveTests(unittest.TestCase):
                 client = NS(completions=NS(create=create), chat=NS(completions=NS(create=create)))
                 with patch.dict(sys.modules, {"openai": NS(OpenAI=Mock(return_value=client))}), \
                         patch.dict(os.environ, {"DEEPSEEK_API_KEY": "fixture-key"}), \
-                        patch("builtins.input", return_value="问题"), contextlib.redirect_stdout(io.StringIO()):
+                        patch("prompt_toolkit.prompt", return_value="问题"), contextlib.redirect_stdout(io.StringIO()):
                     runpy.run_path(str(ROOT / f"agent_v{version}.py"), run_name="__main__")
                 create.assert_called_once()
 

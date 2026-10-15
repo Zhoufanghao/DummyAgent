@@ -2,12 +2,12 @@
   "kind": "live-program-recording",
   "stage": "v2",
   "source_file": "agent_v2.py",
-  "source_sha256": "b5b16fbaac1551bd6fc361ecd93259f077146840e354d8a73519a9ceefbcbba2",
-  "recorded_at": "2026-10-15T14:07:29.536858+00:00",
+  "source_sha256": "a543a84557232761a7f9fd31b10ac9c51c09c41cb9532c8600376cd3d7e726ea",
+  "recorded_at": "2026-10-15T14:56:34.568181+00:00",
   "model_requested": "deepseek-flash",
   "inputs": [
     "我的实验编号是 A102，请记住。",
     "我的实验编号是什么？"
   ],
-  "transcript": "$ Messages → [{'role': 'system', 'content': '你是简洁的中文实验助手。不知道的信息请说不知道。'}, {'role': 'user', 'content': '我的实验编号是 A102，请记住。'}]\n助手：好的，已记住你的实验编号：A102。\n$ Messages → [{'role': 'system', 'content': '你是简洁的中文实验助手。不知道的信息请说不知道。'}, {'role': 'user', 'content': '我的实验编号是 A102，请记住。'}, {'role': 'assistant', 'content': '好的，已记住你的实验编号：A102。'}, {'role': 'user', 'content': '我的实验编号是什么？'}]\n助手：你的实验编号是 A102。\n$ \n"
+  "transcript": "Warning: Input is not a terminal (fd=0).\n$ 。\nMessages → [{'role': 'system', 'content': '你是简洁的中文实验助手。不知道的信息请说不知道。'}, {'role': 'user', 'content': '我的实验编号是 A102，请记住。'}]\n助手：好的，已记住你的实验编号是 A102。\n$ ？\nMessages → [{'role': 'system', 'content': '你是简洁的中文实验助手。不知道的信息请说不知道。'}, {'role': 'user', 'content': '我的实验编号是 A102，请记住。'}, {'role': 'assistant', 'content': '好的，已记住你的实验编号是 A102。'}, {'role': 'user', 'content': '我的实验编号是什么？'}]\n助手：你的实验编号是 A102。\n$ \n\n"
 }

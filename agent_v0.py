@@ -2,6 +2,7 @@
 import math
 import os
 from openai import OpenAI
+from prompt_toolkit import prompt
 
 MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-flash")
 TEMPERATURE = 0
@@ -12,13 +13,13 @@ def main():
     client = OpenAI(api_key=os.environ["DEEPSEEK_API_KEY"],
                     base_url="https://api.deepseek.com/beta", timeout=45, max_retries=1)
     while True:
-        prompt = input("$ ")
-        if not prompt.strip():
+        prefix = prompt("$ ")
+        if not prefix.strip():
             continue
         choice = client.completions.create(
-            model=MODEL, prompt=prompt, max_tokens=TOKEN_STEPS,
+            model=MODEL, prompt=prefix, max_tokens=TOKEN_STEPS,
             temperature=TEMPERATURE, logprobs=5).choices[0]
-        context = prompt
+        context = prefix
         print("Pr[token | context]；top-k 候选概率不重新归一化。")
         for token, logprob, candidates in zip(
                 choice.logprobs.tokens, choice.logprobs.token_logprobs, choice.logprobs.top_logprobs):
@@ -28,7 +29,7 @@ def main():
                 print(f"  候选 {candidate!r:14} logprob={lp:9.4f} p={probability}")
             print(f"→ 生成 {token!r} p={math.exp(logprob):.4%}")
             context += token
-        print(f"\n完整续写：{prompt}{choice.text}")
+        print(f"\n完整续写：{prefix}{choice.text}")
 
 
 if __name__ == "__main__":

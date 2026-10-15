@@ -21,10 +21,10 @@ import tempfile
 ROOT = Path(__file__).resolve().parent
 STAGES = tuple(f"v{index}" for index in range(6))
 LOOP_SCENARIOS = (
-    "先用calculator计算123456789 * 987654321，得到整数A后，取A的末6位作为B；"
-    "再用calculator计算B^3 + 17 * B。请给出A、B和最终整数。每次只请求当前一步的计算，"
+    "先用calculator计算123456789 * 987654321，得到整数A后，取A的末6位作为B；\n"
+    "再用calculator计算B**3 + 17 * B。请给出A、B和最终整数。\n每次只请求当前一步的计算，"
     "必须等工具返回后再进行下一步，不要把整条流程合成一个表达式。",
-    "先用calculator计算987654321^2 + 123456789得到整数A；看工具返回的A末位："
+    "先用calculator计算987654321**2 + 123456789得到整数A；看工具返回的A末位："
     "若为奇数，下一步计算A * 123457 + 76543；否则计算A * 76543 + 123457，得到B；"
     "最后用calculator计算B % 1000000007。请给出A、B和最终余数。每次只请求当前一步的计算，"
     "必须拿到工具结果后再选择下一步，不要把流程合成一个表达式。",
@@ -116,9 +116,11 @@ def verify_stage(repo, stage):
             shutil.copytree(repo / "data", workspace / "data")
         if stage == "v5":
             record["data_sha256"] = file_sha256(workspace / "data/temperature.csv")
+        # Bracketed paste keeps each question's embedded newlines in one submission.
+        keyboard_input = "".join(f"\x1b[200~{question}\x1b[201~\n" for question in SCENARIOS[stage])
         # Closing stdin after these questions supplies the same EOF as Ctrl+D.
         result = subprocess.run([sys.executable, "-u", str(script)], cwd=workspace,
-                                input="\n".join(SCENARIOS[stage]) + "\n", stdout=subprocess.PIPE,
+                                input=keyboard_input, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, text=True, encoding="utf-8")
         record["transcript"] = result.stdout
         print(result.stdout, end="", flush=True)

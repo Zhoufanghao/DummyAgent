@@ -169,7 +169,7 @@ def render_stage(root, stage, previous, index):
       <section class="run-command" aria-label="运行当前阶段">
         <div class="command-row"><code class="command-text">{escape(command)}</code>
           <button class="copy-command" type="button">复制交互命令</button></div>
-        <p>直接进入自由交互，以 <code>$ </code> 提示输入；按 <code>Ctrl+D</code> 结束。
+        <p>直接进入自由交互，以 <code>$ </code> 提示输入；多行粘贴后按 <code>Enter</code> 整段提交，按 <code>Ctrl+D</code> 结束。
           网页只展示代码与已保存输出；请在终端运行命令。</p>
       </section>
       <div class="version-bar"><span><code>{escape(stage['file'])}</code> · SHA-256 <code title="{escape(stage['sha256'])}">{escape(stage['sha256'][:12])}</code></span>

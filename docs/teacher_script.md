@@ -6,13 +6,13 @@
 
 默认实时模型为 **DeepSeek-V4.1-Flash**，API ID `deepseek-flash`。2026-10-15 核查的官方更新页记录了这一别名映射；开课前须重新核对。公开 DeepSeek-V3 Chat Template 只作历史模型对照，不代表当前托管 API 内部格式。来源见 [sources.md](sources.md)。
 
-六阶段文件 `agent_v0.py`—`agent_v5.py` 同时放在项目根目录，每份独立运行并内联自己需要的工具。课堂不切 Git 版本，也不借助公共运行模块。输入提示为 `$ `，空白行跳过，Ctrl+D 或 Ctrl+C 结束；重新运行即开始新对话。下文引号内可照读，操作说明供教师使用；逐页安排见 [slides_outline.md](slides_outline.md)。
+六阶段文件 `agent_v0.py`—`agent_v5.py` 同时放在项目根目录，每份独立运行并内联自己需要的工具。课堂不切 Git 版本，也不借助公共运行模块。输入由 `prompt_toolkit` 提供，提示为 `$ `；在支持 bracketed paste 的终端中，含换行的粘贴作为一条完整输入保留，粘贴后按一次 Enter 提交。空白输入跳过，Ctrl+D 或 Ctrl+C 结束；重新运行即开始新对话。下文引号内可照读，操作说明供教师使用；逐页安排见 [slides_outline.md](slides_outline.md)。
 
 ## 上课前：完整彩排
 
-1. 在包含六份程序的项目根目录准备 Python 与 SDK，加载 `DEEPSEEK_API_KEY`；模型可由 `DEEPSEEK_MODEL` 覆盖。密钥值和环境文件不投屏。程序不自动建虚拟环境或配置代理。
-2. 运行 `python verify_live.py`，由独立教师脚本启动六份实际程序。检查 `recordings/v0.json`—`recordings/v5.json` 对应的 source_file、源码 SHA-256、独立的 inputs 输入列表和原始程序输出转录（stdout/stderr 合并）。预置输入不自动回显，网页另列彩排输入。它不是完整 SDK 请求/响应记录，未知的返回模型不作说明。
-3. 分别手工运行 `python agent_v0.py` 到 `python agent_v5.py`。检查任意前缀、两轮对话、自定计算、Bash 文件任务，以及空白输入、Ctrl+D 和 Ctrl+C。
+1. 在包含六份程序的项目根目录按 requirements 安装标准库以外的 OpenAI SDK 与 `prompt_toolkit`，加载 `DEEPSEEK_API_KEY`；模型可由 `DEEPSEEK_MODEL` 覆盖。密钥值和环境文件不投屏。程序不自动建虚拟环境或配置代理。
+2. 运行 `python verify_live.py`，由独立教师脚本启动六份实际程序。检查 `recordings/v0.json`—`recordings/v5.json` 对应的 source_file、源码 SHA-256、独立的 inputs 输入列表和原始程序输出转录（stdout/stderr 合并）。网页另列完整彩排输入；终端库自身的输入回显按原样保留在转录中。它不是完整 SDK 请求/响应记录，未知的返回模型不作说明。
+3. 分别手工运行 `python agent_v0.py` 到 `python agent_v5.py`。检查任意前缀、两轮对话、自定计算、Bash 文件任务，以及多行粘贴后按一次 Enter、空白输入、Ctrl+D 和 Ctrl+C。
 4. 运行 `python preflight.py`、`python build_viewer.py`，打开 `web/index.html`。检查六阶段源码、相邻文件差异、复制命令与真实输出；调到投影字号。网页源码直接来自当前六份文件。
 5. 核对 CSV 独立基准：10 行，温度 20—29 ℃，平均 24.5 ℃、最大 29 ℃、最小 20 ℃。检查真实生成的代码与报告，保留彩排成品；模型说“完成”不能替代核对。
 6. v0 默认 `TOKEN_STEPS = 12`、`TEMPERATURE = 0`。备课时试改为 0.8，课堂温度比较也只改这一常量并重启；结束后恢复 0。使用旧归档轨迹时明确它对应旧源码。
@@ -175,7 +175,7 @@ python agent_v2.py
 
 指出 calculator 名称、expression 字符串和工具 Schema；同一文件里定位 `calculator(expression)`。
 
-“Schema 是给模型看的说明，不是函数实现。模型写出函数名，不会自动在电脑上执行。这个教学计算器先把表达式里的 `^` 转成 Python 的幂运算符 `**`，再用 `eval` 求值，代码就在这里。”
+“Schema 是给模型看的说明，不是函数实现。模型写出函数名，不会自动在电脑上执行。这个教学计算器直接用 `eval(expression)` 求值，幂运算使用 Python 的 `**`，代码就在这里。”
 
 **25:00—27:00，运行同一计算。**
 
@@ -204,7 +204,9 @@ LLM → Tool Call → Python Function → Tool Result → LLM
 用 Ctrl+D 结束简单计算会话，重新运行 `python agent_v3.py`，输入下面完整题目；真实彩排轨迹可作时间不足时的备份。
 
 ```text
-先用calculator计算123456789 * 987654321，得到整数A后，取A的末6位作为B；再用calculator计算B^3 + 17 * B。请给出A、B和最终整数。每次只请求当前一步的计算，必须等工具返回后再进行下一步，不要把整条流程合成一个表达式。
+先用calculator计算123456789 * 987654321，得到整数A后，取A的末6位作为B；
+再用calculator计算B**3 + 17 * B。请给出A、B和最终整数。
+每次只请求当前一步的计算，必须等工具返回后再进行下一步，不要把整条流程合成一个表达式。
 ```
 
 “这次题目明确要求：先拿到第一步工具结果，再决定下一次输入，不能把整条流程合在一次计算里。”

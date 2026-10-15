@@ -1,6 +1,7 @@
 """v1：保存文本 history，每轮重新提交双方对话。"""
 import os
 from openai import OpenAI
+from prompt_toolkit import prompt
 
 MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-flash")
 TEMPERATURE = 0
@@ -11,7 +12,7 @@ def main():
                     base_url="https://api.deepseek.com/beta", timeout=45, max_retries=1)
     history = "请续写下面的中文对话，只回答最后一个问题；不知道的信息请说不知道。\n"
     while True:
-        question = input("$ ")
+        question = prompt("$ ")
         if not question.strip():
             continue
         history += f"用户：{question}\n助手："

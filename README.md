@@ -1,6 +1,6 @@
 # 从文字接龙到 AI Agent：用一个 API 构建智能体
 
-45 分钟，面向泛工科本科生。六份独立 Python 文件依次展示文本续写、history、messages、工具调用、反馈循环与 Bash 执行；所有阶段同时放在项目根目录，只使用标准库和 OpenAI Python SDK。
+45 分钟，面向泛工科本科生。六份独立 Python 文件依次展示文本续写、history、messages、工具调用、反馈循环与 Bash 执行；所有阶段同时放在项目根目录，依赖标准库、OpenAI Python SDK 和用于交互输入的 `prompt_toolkit`。
 
 默认模型为 **DeepSeek-V4.1-Flash**，API ID 为 `deepseek-flash`。2026-10-15 核查的[官方更新](https://api-docs.deepseek.com/updates/)记录了这一别名映射；开课前须重新核对。公开 V3 仅用于历史 Chat Template 对照。
 
@@ -16,7 +16,7 @@ python agent_v0.py
 
 密钥由 `DEEPSEEK_API_KEY` 提供；若环境文件没有 `export`，可用 `set -a; source ~/.config/api-keys/llm.env; set +a`。`DEEPSEEK_MODEL` 可覆盖默认模型。模型和温度等配置在每个文件顶部；程序不自动创建虚拟环境或设置代理。
 
-各阶段都是自由交互，以 `$ ` 提示输入，空白行跳过；Ctrl+D 结束，Ctrl+C 退出。程序不处理聊天内命令。要开始全新对话，结束后重新启动。
+各阶段都是自由交互，使用 `prompt_toolkit.prompt("$ ")` 提示输入。在支持 bracketed paste 的终端中，多行粘贴会整体保留换行，粘贴后按一次 Enter 提交；空白输入跳过，Ctrl+D 结束，Ctrl+C 退出。程序不处理聊天内命令。要开始全新对话，结束后重新启动。
 
 | 阶段 | 直接运行 | 机制 |
 |---|---|---|
@@ -27,7 +27,7 @@ python agent_v0.py
 | v4 | `python agent_v4.py` | calculator：工具结果推动下一轮决策 |
 | v5 | `python agent_v5.py` | Bash：在当前目录执行命令并反馈结果 |
 
-每份文件都包含自己所需的 SDK 调用、历史、工具定义和执行函数，无本地公共运行模块。v1 起不保留 token 演示；v5 仅有 Bash 工具。v3/v4 的 `calculator` 将数学乘方符号 `^` 转成 Python 的 `**`，再直接用 `eval` 求值，两种写法都可用。v4/v5 使用 `while True`，模型返回最终回答时结束当前任务，没有循环轮数上限。
+每份文件都包含自己所需的 SDK 调用、历史、工具定义和执行函数，无本地公共运行模块。v1 起不保留 token 演示；v5 仅有 Bash 工具。v3/v4 的 `calculator` 直接用 `eval(expression)` 求值；幂运算使用 Python 的 `**`。v4/v5 使用 `while True`，模型返回最终回答时结束当前任务，没有循环轮数上限。
 
 默认 `TEMPERATURE = 0`，v0 的 `TOKEN_STEPS = 12`。温度比较直接修改 `agent_v0.py` 顶部常量，比较 0 与 0.8 后恢复默认值。SDK 不流式返回，Chat 请求关闭 thinking；单次 API 超时 45 秒，最多重试 1 次。
 
@@ -36,7 +36,9 @@ python agent_v0.py
 单个复杂算式通常一次 calculator 调用就能完成。演示 loop 时，在 v3 和 v4 各自新启动的程序中输入同一题：
 
 ```text
-先用calculator计算123456789 * 987654321，得到整数A后，取A的末6位作为B；再用calculator计算B^3 + 17 * B。请给出A、B和最终整数。每次只请求当前一步的计算，必须等工具返回后再进行下一步，不要把整条流程合成一个表达式。
+先用calculator计算123456789 * 987654321，得到整数A后，取A的末6位作为B；
+再用calculator计算B**3 + 17 * B。请给出A、B和最终整数。
+每次只请求当前一步的计算，必须等工具返回后再进行下一步，不要把整条流程合成一个表达式。
 ```
 
 标准答案为 A = `121932631112635269`、B = `635269`、最终整数 = `256373415452969682`。本次真实彩排中，v3 只执行第一步，随后输出未执行的调用文本，没有给出最终数值；v4 根据第一步结果继续调用，得到正确终值。更多题面、标准答案及判读方法见 [循环对照案例](docs/loop_examples.md)。
@@ -65,7 +67,7 @@ python build_viewer.py
 python verify_live.py
 ```
 
-独立教师脚本运行六份实际程序，保存 `recordings/v0.json`—`recordings/v5.json`。新记录的类型为 `live-program-recording`，包含实际程序输出转录（stdout/stderr 合并）、`source_file` 和 `source_sha256`；它不捕获完整 SDK 请求与响应。页面只展示已知的请求模型，不编造 API 返回模型。彩排输入保存在独立的 `inputs` 列表，网页单列展示，不拼入原始转录。源码变化后应重新验证并录制。
+独立教师脚本运行六份实际程序，保存 `recordings/v0.json`—`recordings/v5.json`。新记录的类型为 `live-program-recording`，包含实际程序输出转录（stdout/stderr 合并）、`source_file` 和 `source_sha256`；它不捕获完整 SDK 请求与响应。页面只展示已知的请求模型，不编造 API 返回模型。彩排输入保存在独立的 `inputs` 列表，网页单列展示；终端库自身的输入回显按原样保留，不由教师脚本补写。源码变化后应重新验证并录制。
 
 轨迹明确标记 **REPLAY**，只展示已经发生的运行，不调用 API、不执行历史命令、不重新生成文件。网络失败不会自动切换。现场需要报告时，打开彩排保留的文件或已核实的 [examples/final-report.md](examples/final-report.md)。旧录制与既有 Git 标签只用于追溯，不参与当前课堂运行与网页构建。
 

@@ -3,6 +3,7 @@ import json
 import os
 import subprocess
 from openai import OpenAI
+from prompt_toolkit import prompt
 
 MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-flash")
 TEMPERATURE = 0
@@ -34,7 +35,7 @@ def main():
                     base_url="https://api.deepseek.com/beta", timeout=45, max_retries=1)
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     while True:
-        task = input("$ ")
+        task = prompt("$ ")
         if not task.strip():
             continue
         messages.append({"role": "user", "content": task})
