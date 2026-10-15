@@ -21,3 +21,10 @@
 - 两次真实Chat Completion成功；请求角色顺序分别system/user与system/user/assistant/user，第二次恢复A102。
 - 禁用thinking以便展示普通回复；检查每次请求为不可变快照（避免后续append污染录制）。
 - 语法、无SDK离线回放和快照回归检查通过。公开V3 Chat Template辅助演示随课程材料交付。
+
+## v3-tools
+
+- 真实演示完整3次LLM调用：无工具回答、工具请求、收到Python结果后的回答。
+- 本次无工具回答乘积为83809845，真实Python乘积为83810205；只说明本次观察，不宣称模型每次都会算错。
+- 工具结果1821960.9782608696；匹配tool_call_id并回填role=tool；最终模型约为1,821,960.98。
+- 参数/未知工具/非法AST/除零/幂资源滥用测试通过；离线回放通过。calculator采用Python浮点数，有正常舍入误差。

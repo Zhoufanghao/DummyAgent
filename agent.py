@@ -1,6 +1,8 @@
-"""v2：把文本history改成有角色的messages。"""
+"""v3：模型生成Tool Call，Python验证参数并真正执行。"""
+import json
 import math
 from common import call, run
+from tools import TOOLS, execute
 
 
 def token_demo(client, args):
@@ -23,7 +25,7 @@ def token_demo(client, args):
     print(f"\n完整续写：{args.prompt}{choice.text}\n停止原因：{choice.finish_reason}")
 
 
-def main(client, args):
+def chat_demo(client, args):
     if args.tokens:
         return token_demo(client, args)
     messages = [{"role": "system", "content": "你是简洁的中文实验助手。不知道的信息请说不知道。"}]
@@ -47,5 +49,42 @@ def main(client, args):
         messages.append({"role": "assistant", "content": answer})
 
 
+def main(client, args):
+    if args.tokens:
+        return token_demo(client, args)
+    if args.chat:
+        return chat_demo(client, args)
+    task = args.task or "请计算(12345 * 6789) / (17 + 29)，简短回答。"
+    messages = [{"role": "system", "content": "你是中文计算助手，使用工具时以工具结果为准。"},
+                {"role": "user", "content": task}]
+    print(f"用户：{task}")
+    plain = call(client.chat.completions.create, model=args.model, messages=messages,
+                 temperature=args.temperature, max_tokens=220,
+                 extra_body={"thinking": {"type": "disabled"}})
+    print(f"[不使用工具] {plain.choices[0].message.content}")
+    print("Tool Schema →", json.dumps(TOOLS, ensure_ascii=False))
+    response = call(client.chat.completions.create, model=args.model, messages=messages,
+                    tools=TOOLS, tool_choice="required", temperature=args.temperature,
+                    max_tokens=300, extra_body={"thinking": {"type": "disabled"}})
+    message = response.choices[0].message
+    if response.choices[0].finish_reason != "tool_calls" or not message.tool_calls:
+        raise RuntimeError("未得到完整Tool Call")
+    if len(message.tool_calls) > 4:
+        raise RuntimeError("工具请求数量超限")
+    messages.append(message.model_dump(include={"role", "content", "tool_calls"}, exclude_none=True))
+    for tool_call in message.tool_calls:
+        print("LLM → Tool Call：", tool_call.function.name, tool_call.function.arguments)
+        result = execute(tool_call)  # 真正执行在这里；模型只输出名称和参数。
+        print("Python Function → Tool Result：", result)
+        messages.append({"role": "tool", "tool_call_id": tool_call.id,
+                         "content": json.dumps(result, ensure_ascii=False)})
+    final = call(client.chat.completions.create, model=args.model, messages=messages,
+                 temperature=args.temperature, max_tokens=220,
+                 extra_body={"thinking": {"type": "disabled"}})
+    if final.choices[0].finish_reason != "stop":
+        raise RuntimeError("最终回答被截断")
+    print("LLM → 最终回答：", final.choices[0].message.content)
+
+
 if __name__ == "__main__":
-    run(main, "v2-chat")
+    run(main, "v3-tools")
