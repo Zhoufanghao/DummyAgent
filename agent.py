@@ -1,32 +1,54 @@
-"""v2：用 system/user/assistant messages 表示多轮对话。"""
+"""v3：每个问题只做一轮工具请求、执行、回填和回答。"""
+import json
 import os
 import sys
+from tools import TOOLS, execute
 
 MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-flash")
 TEMPERATURE = 0
 
 
-def main(client):
-    messages = [{"role": "system", "content": "你是简洁的中文实验助手。不知道的信息请说不知道。"}]
-    while True:
-        try:
-            question = input("$ ")
-        except (EOFError, KeyboardInterrupt):
-            print()
-            return
-        if not question.strip():
-            continue
-        messages.append({"role": "user", "content": question})
-        print(f"Messages → {messages}")
+def tool_reply(client, messages):
+    response = client.chat.completions.create(
+        model=MODEL, messages=messages, tools=TOOLS, tool_choice="auto",
+        temperature=TEMPERATURE, max_tokens=500,
+        extra_body={"thinking": {"type": "disabled"}})
+    choice = response.choices[0]
+    message = choice.message
+    if message.tool_calls:
+        if choice.finish_reason != "tool_calls" or len(message.tool_calls) > 4:
+            raise RuntimeError("Tool Call不完整或数量超限")
+        messages.append(message.model_dump(include={"role", "content", "tool_calls"}, exclude_none=True))
+        for tool_call in message.tool_calls:
+            print("LLM → Tool Call：", tool_call.function.name, tool_call.function.arguments)
+            result = execute(tool_call)  # 模型提出请求，Python执行函数。
+            print("Python Function → Tool Result：", result)
+            messages.append({"role": "tool", "tool_call_id": tool_call.id,
+                             "content": json.dumps(result, ensure_ascii=False)})
         response = client.chat.completions.create(
             model=MODEL, messages=messages, temperature=TEMPERATURE, max_tokens=500,
             extra_body={"thinking": {"type": "disabled"}})
         choice = response.choices[0]
-        if choice.finish_reason != "stop":
-            raise RuntimeError("回复被截断或异常停止")
-        answer = choice.message.content or ""
-        print(f"助手：{answer}")
-        messages.append({"role": "assistant", "content": answer})
+        message = choice.message
+    if choice.finish_reason != "stop" or message.tool_calls:
+        raise RuntimeError("回答被截断或异常停止")
+    print("LLM → 最终回答：", message.content)
+    messages.append({"role": "assistant", "content": message.content or ""})
+
+
+def main(client):
+    messages = [{"role": "system", "content": "你是中文计算助手，需要计算时使用calculator，以实际工具结果为准。"}]
+    print("Tool Schema →", json.dumps(TOOLS, ensure_ascii=False))
+    while True:
+        try:
+            task = input("$ ")
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return
+        if not task.strip():
+            continue
+        messages.append({"role": "user", "content": task})
+        tool_reply(client, messages)
 
 
 def cli():
