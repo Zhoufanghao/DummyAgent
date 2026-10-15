@@ -1,36 +1,20 @@
 #!/usr/bin/env python3
-"""从真实 Git tags 构建可直接打开的静态教学网页（仅使用标准库）。"""
+"""从六个独立 Python 文件构建可直接打开的静态教学网页（仅使用标准库）。"""
 
 import argparse
 import difflib
 import hashlib
 import html
 import json
-import os
-import subprocess
 import sys
 from pathlib import Path
 
 
-TAGS = (
-    "v0-token", "v1-memory", "v2-chat", "v3-tools",
-    "v4-agent-loop", "v5-execution",
-)
-SOURCE_FILES = ("agent.py", "tools.py")
+STAGES = tuple(f"v{index}" for index in range(6))
 
 
 class BuildError(Exception):
     """让构建失败原因以简洁中文呈现。"""
-
-
-def git(repo, *args):
-    result = subprocess.run(
-        ["git", "-C", str(repo), *args], capture_output=True, text=True,
-        encoding="utf-8", timeout=30,
-    )
-    if result.returncode:
-        raise BuildError(f"Git 命令失败：{' '.join(args)}\n{result.stderr.strip()}")
-    return result.stdout
 
 
 def escape(value):
@@ -42,44 +26,29 @@ def read_stages(metadata):
         stages = json.loads(metadata.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise BuildError(f"不能读取阶段说明 {metadata}：{exc}") from exc
-    if (not isinstance(stages, list) or not all(isinstance(s, dict) for s in stages)
-            or [s.get("tag") for s in stages] != list(TAGS)):
-        raise BuildError("stages.json 必须按顺序包含全部六个规定的 Git tags。")
-    required = ("ref", "title", "ability", "why", "can_do", "focus", "minutes")
-    if any(not isinstance(s.get(k), str) for s in stages for k in required):
-        raise BuildError("每个阶段都必须包含 ref / title / ability / why / can_do / focus / minutes 文本。")
+    if (not isinstance(stages, list) or not all(isinstance(stage, dict) for stage in stages)
+            or [stage.get("id") for stage in stages] != list(STAGES)):
+        raise BuildError("stages.json 必须按顺序包含 v0 至 v5 六个阶段。")
+    required = ("title", "ability", "why", "can_do", "focus", "minutes")
+    if any(not isinstance(stage.get(key), str) for stage in stages for key in required):
+        raise BuildError("每个阶段都必须包含 title / ability / why / can_do / focus / minutes 文本。")
+    if any(stage.get("file") != f"agent_{stage['id']}.py" for stage in stages):
+        raise BuildError("阶段源码文件必须对应 agent_v0.py 至 agent_v5.py。")
     return stages
 
 
-def load_versions(repo, stages, source_files=SOURCE_FILES):
-    """只读取已存在的真实 tags；不使用工作区文件补齐历史版本。"""
-    try:
-        refs = json.loads(os.environ.get("DUMMY_AGENT_STAGE_REFS", "{}"))
-    except ValueError as exc:
-        raise BuildError("DUMMY_AGENT_STAGE_REFS 必须是阶段到 Git ref 的 JSON 对象。") from exc
-    if (not isinstance(refs, dict) or any(k not in TAGS or not isinstance(v, str) or not v
-                                         for k, v in refs.items())):
-        raise BuildError("DUMMY_AGENT_STAGE_REFS 只能指定六个教学阶段及非空 Git ref。")
-    existing = set(git(repo, "tag", "--list").splitlines())
-    missing = [s["ref"] for s in stages if s["ref"] not in existing and s["tag"] not in refs]
-    if missing:
-        raise BuildError("缺少 Git tags：" + ", ".join(missing)
-                         + "。请逐阶段验证、提交并创建 tag 后再生成网页。")
+def load_versions(root, stages):
+    """直接读取同一目录中的六份源码及其字节摘要。"""
     versions = []
     for stage in stages:
-        tag = stage["tag"]
-        ref = refs.get(tag, stage["ref"])
-        paths = set(git(repo, "ls-tree", "-r", "--name-only", ref).splitlines())
-        if "agent.py" not in paths:
-            raise BuildError(f"{tag} 中没有 agent.py，无法展示同一程序的演进。")
-        sources = {
-            path: git(repo, "show", f"{ref}:{path}")
-            for path in source_files if path in paths
-        }
-        versions.append({
-            **stage, "ref": ref, "sha": git(repo, "rev-parse", f"{ref}^{{commit}}").strip(),
-            "sources": sources,
-        })
+        path = root / stage["file"]
+        try:
+            content = path.read_bytes()
+            source = content.decode("utf-8")
+        except (OSError, UnicodeError) as exc:
+            raise BuildError(f"不能读取阶段源码 {path}：{exc}") from exc
+        versions.append({**stage, "source": source,
+                         "sha256": hashlib.sha256(content).hexdigest()})
     return versions
 
 
@@ -102,7 +71,7 @@ def line_changes(before, after):
 def render_code(source, highlights):
     lines = source.splitlines()
     if not lines:
-        return '<p class="empty">这个版本中没有此文件。</p>'
+        return '<p class="empty">源码文件为空。</p>'
     output = []
     for number, line in enumerate(lines, 1):
         kind = highlights.get(number, "")
@@ -119,7 +88,7 @@ def render_diff(before, after, old_label, new_label):
         tofile=new_label, lineterm="", n=3,
     ))
     if not diff:
-        return '<p class="empty">与上一阶段相比，这个文件没有变化。</p>'
+        return '<p class="empty">与上一阶段相比，源码没有变化。</p>'
     output = []
     for line in diff:
         if line.startswith(("--- ", "+++ ")):
@@ -136,115 +105,60 @@ def render_diff(before, after, old_label, new_label):
     return '<pre class="diff-code">' + "".join(output) + "</pre>"
 
 
-def recording_text(data):
-    """兼容纯 transcript 和常见事件列表；未识别的结构不伪造成运行结果。"""
-    if isinstance(data, str):
-        return data
-    if not isinstance(data, dict):
-        return ""
-    for field in ("transcript", "text", "stdout"):
-        value = data.get(field)
-        if isinstance(value, str):
-            return value
-        if isinstance(value, list):
-            return "\n".join(str(item) for item in value)
-    events = data.get("events", [])
-    if isinstance(events, list):
-        texts = []
-        for event in events:
-            if isinstance(event, str):
-                texts.append(event)
-            elif isinstance(event, dict):
-                for key in ("text", "message", "content", "stdout"):
-                    if isinstance(event.get(key), str):
-                        texts.append(event[key])
-                        break
-        return "\n".join(texts)
-    return ""
-
-
-def render_recording(repo, tag, filename=None, version=None):
-    path = repo / "recordings" / (filename or f"{tag}.json")
+def render_recording(root, stage):
+    path = root / "recordings" / f"{stage['id']}.json"
     if not path.is_file():
-        return ('<p class="empty">尚无当前源码的真实运行记录。使用教师验证工具联网验证后，'
-                f'将记录保存到 <code>recordings/{escape(tag)}.json</code> 再重新构建本页。</p>')
+        return ('<p class="empty">尚无当前源码的真实运行记录。运行教师验证工具后，'
+                f'将记录保存到 <code>recordings/{escape(stage["id"])}.json</code> 再重新构建本页。</p>')
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise BuildError(f"运行记录无法读取 {path}：{exc}") from exc
-    if isinstance(data, dict) and data.get("stage", tag) != tag:
-        raise BuildError(f"运行记录阶段不匹配：{path} 声明的 stage 不是 {tag}。")
-    transcript = recording_text(data)
+    if not isinstance(data, dict) or data.get("kind") != "live-program-recording":
+        raise BuildError(f"运行记录类型不匹配：{path} 需要 live-program-recording。")
+    if data.get("stage") != stage["id"]:
+        raise BuildError(f"运行记录阶段不匹配：{path}。")
+    transcript = data.get("transcript")
+    if not isinstance(transcript, str):
+        raise BuildError(f"运行记录缺少 stdout 转录 transcript：{path}。")
+    result = (f'<p class="recording-meta">来源：recordings/{escape(path.name)} · 离线回放</p>'
+              '<p class="recording-meta">记录类型：真实程序交互录制；内容为原始程序输出转录（stdout/stderr 合并），未捕获完整 SDK 请求与响应。</p>')
+    if (data.get("source_file") != stage["file"]
+            or data.get("source_sha256") != stage["sha256"]):
+        result += '<p class="recording-meta">历史记录：此输出不对应当前展示的源码。</p>'
     provenance = []
-    if isinstance(data, dict):
-        for key, label in (("recorded_at", "记录时间"), ("provider", "服务"),
-                           ("model_requested", "请求模型"), ("model", "模型"),
-                           ("mode", "记录模式")):
-            if isinstance(data.get(key), (str, int, float)):
-                provenance.append(f"{label}：{escape(data[key])}")
-        returned_models = []
-        events = data.get("events", [])
-        for event in events if isinstance(events, list) else []:
-            if not isinstance(event, dict) or not isinstance(event.get("response"), dict):
-                continue
-            model = event["response"].get("model")
-            if isinstance(model, str) and model not in returned_models:
-                returned_models.append(model)
-        if returned_models:
-            provenance.append("API 返回模型：" + escape(", ".join(returned_models)))
-    meta = " · ".join(provenance)
-    result = f'<p class="recording-meta">来源：recordings/{escape(path.name)} · 离线回放</p>'
-    if version and isinstance(data, dict):
-        hashes = {name: hashlib.sha256(source.encode("utf-8")).hexdigest()
-                  for name, source in version["sources"].items()}
-        recorded = data.get("runtime_sha256", {})
-        matches = data.get("source_sha256") == hashes["agent.py"]
-        if "tools.py" in hashes or recorded:
-            matches = matches and isinstance(recorded, dict) and all(
-                recorded.get(name) == digest for name, digest in hashes.items())
-        if data.get("source_commit"):
-            matches = matches and data["source_commit"] == version["sha"]
-        if not matches:
-            result += '<p class="recording-meta">历史记录：此输出不对应当前展示的源码。</p>'
-    if isinstance(data, dict) and data.get("kind") == "live-api-recording":
-        result += '<p class="recording-meta">记录类型：真实 API 调用录制；当前页面展示已保存输出。</p>'
-    if meta:
-        result += f'<p class="recording-meta">{meta}</p>'
+    for key, label in (("recorded_at", "记录时间"), ("provider", "服务"),
+                       ("model_requested", "请求模型"), ("source_file", "源码文件")):
+        if isinstance(data.get(key), str):
+            provenance.append(f"{label}：{escape(data[key])}")
+    if provenance:
+        result += f'<p class="recording-meta">{" · ".join(provenance)}</p>'
+    inputs = data.get("inputs", [])
+    if not isinstance(inputs, list) or any(not isinstance(item, str) for item in inputs):
+        raise BuildError(f"运行记录的 inputs 必须是文本列表：{path}。")
+    if inputs:
+        saved_inputs = "".join(f"<li><code>{escape(item)}</code></li>" for item in inputs)
+        result += ('<section class="recording-inputs"><h3>彩排输入 · 保存的输入列表</h3>'
+                   f'<ol>{saved_inputs}</ol></section>')
     if not transcript:
-        return result + '<p class="empty">记录存在，但没有可展示的 transcript / text / stdout / events 文本。</p>'
+        return result + '<p class="empty">记录存在，但 stdout 转录为空。</p>'
     return result + f'<pre class="terminal">{escape(transcript)}</pre>'
 
 
-def render_stage(repo, stage, previous, index, source_files):
-    current = stage["sources"]
-    old = previous["sources"] if previous else {}
-    files = [path for path in source_files if path in current or path in old]
-    changes = {path: line_changes(old.get(path, ""), current.get(path, "")) for path in files}
-    added = sum(change[0] for change in changes.values())
-    removed = sum(change[1] for change in changes.values())
-    compare = previous["tag"] if previous else "空文件（起点）"
-    options = "".join(f'<option value="{escape(path)}">{escape(path)}</option>' for path in files)
-    panels = []
-    for file_index, path in enumerate(files):
-        _, _, highlights = changes[path]
-        source = render_code(current.get(path, ""), highlights)
-        diff = render_diff(old.get(path, ""), current.get(path, ""),
-                           f'{compare}/{path}', f'{stage["tag"]}/{path}')
-        panels.append(
-            f'<div class="file-panel" data-file="{escape(path)}"'
-            + (" hidden" if file_index else "") + '><div class="code-columns">'
-            f'<section class="code-pane"><h3>当前版本 · {escape(path)}</h3>{source}</section>'
-            f'<section class="code-pane"><h3>与 {escape(compare)} 的差异</h3>{diff}</section>'
-            '</div></div>'
-        )
+def render_stage(root, stage, previous, index):
+    before = previous["source"] if previous else ""
+    added, removed, highlights = line_changes(before, stage["source"])
+    compare = previous["file"] if previous else "空文件（起点）"
+    source = render_code(stage["source"], highlights)
+    diff = render_diff(before, stage["source"], compare, stage["file"])
     extra = ""
-    if stage["tag"] == "v2-chat":
-        extra += ('<p class="page-note">公开模板辅助演示：在仓库根目录运行 '
-                  '<code>python chat_template_demo.py</code>。该历史V3模板不代表当前Flash托管API内部格式。</p>')
-    command = f"git switch --detach {stage['ref']}\npython agent.py"
+    if stage["id"] == "v2":
+        extra = ('<p class="page-note">公开模板辅助演示：在项目根目录运行 '
+                 '<code>python chat_template_demo.py</code>。该历史V3模板不代表当前Flash托管API内部格式。</p>')
+    command = f"python {stage['file']}"
     hidden = " hidden" if index else ""
-    return f'''<article class="stage" id="{escape(stage['tag'])}" data-stage="{escape(stage['tag'])}"{hidden}>
-      <div class="eyebrow">{escape(stage['minutes'])} <span>同一个 agent.py · 第 {index + 1} / 6 个版本</span></div>
+    return f'''<article class="stage" id="{escape(stage['id'])}" data-stage="{escape(stage['id'])}"{hidden}>
+      <div class="eyebrow">{escape(stage['minutes'])} <span>独立文件 · 第 {index + 1} / 6 个阶段</span></div>
       <h1>{escape(stage['title'])}</h1>
       <p class="focus">{escape(stage['focus'])}</p>
       <div class="learning-grid">
@@ -258,13 +172,16 @@ def render_stage(repo, stage, previous, index, source_files):
         <p>直接进入自由交互，以 <code>$ </code> 提示输入；按 <code>Ctrl+D</code> 结束。
           网页只展示代码与已保存输出；请在终端运行命令。</p>
       </section>
-      <div class="version-bar"><span><code>{escape(stage['tag'])}</code> · commit <code title="{escape(stage['sha'])}">{escape(stage['sha'][:12])}</code></span>
-        <span class="stats"><b class="plus">+{added}</b> / <b class="minus">−{removed}</b> 行 <small>全部教学源码</small></span></div>
-      <div class="code-toolbar"><label>源码文件 <select class="file-selector" aria-label="选择源码文件">{options}</select></label>
+      <div class="version-bar"><span><code>{escape(stage['file'])}</code> · SHA-256 <code title="{escape(stage['sha256'])}">{escape(stage['sha256'][:12])}</code></span>
+        <span class="stats"><b class="plus">+{added}</b> / <b class="minus">−{removed}</b> 行 <small>当前阶段源码</small></span></div>
+      <div class="code-toolbar"><span>源码文件 <code>{escape(stage['file'])}</code></span>
         <span class="legend"><i class="added"></i> 新增 <i class="removed"></i> 删除 <i class="modified"></i> 修改后的行</span></div>
-      {''.join(panels)}
-      <section class="recording"><h2>示例运行结果 <span class="replay-badge">REPLAY · 已保存输出</span></h2>{render_recording(repo, stage['tag'], version=stage)}{extra}</section>
-      <footer>统计仅覆盖本页的教学源码。替换一行计为删除一行、增加一行。页面内容来自 Git tag；本页不调用 API，也不执行模型生成的命令。</footer>
+      <div class="code-columns">
+        <section class="code-pane"><h3>当前源码 · {escape(stage['file'])}</h3>{source}</section>
+        <section class="code-pane"><h3>与 {escape(compare)} 的差异</h3>{diff}</section>
+      </div>
+      <section class="recording"><h2>示例运行结果 <span class="replay-badge">REPLAY · 已保存输出</span></h2>{render_recording(root, stage)}{extra}</section>
+      <footer>替换一行计为删除一行、增加一行。源码来自项目中的独立文件；本页不调用 API，也不执行模型生成的命令。</footer>
     </article>'''
 
 
@@ -319,6 +236,8 @@ pre { margin:0; font:var(--code-size)/1.75 ui-monospace,SFMono-Regular,Menlo,Con
 .empty { margin:0; padding:20px; font-size:13px; color:var(--muted); }
 .recording { margin-top:26px; } .recording h2 { display:flex; align-items:center; gap:10px; margin-bottom:9px; }
 .replay-badge { font-size:10px; background:#fff1d7; border:1px solid #e6cd99; color:#7c5816; border-radius:4px; padding:2px 6px; font-weight:400; }
+.recording-inputs { margin-top:12px; background:#fff; border:1px solid var(--line); border-radius:5px; }
+.recording-inputs li { padding:3px 12px 3px 0; white-space:pre-wrap; overflow-wrap:anywhere; }
 .recording-meta { color:var(--muted); font-size:11px; margin:3px 0; }
 .terminal { margin-top:12px; padding:20px; border-radius:8px; background:#132e38; color:#dfefed; max-height:430px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; }
 footer { font-size:11px; color:var(--muted); margin-top:20px; } noscript { display:block; background:#fff2cb; padding:12px; }
@@ -330,14 +249,14 @@ JS = r'''
 (() => {
   const buttons = Array.from(document.querySelectorAll('.stage-link'));
   const stages = Array.from(document.querySelectorAll('.stage'));
-  function selectStage(tag, updateHash) {
-    if (!stages.some(stage => stage.dataset.stage === tag)) tag = stages[0].dataset.stage;
-    stages.forEach(stage => { stage.hidden = stage.dataset.stage !== tag; });
+  function selectStage(stageId, updateHash) {
+    if (!stages.some(stage => stage.dataset.stage === stageId)) stageId = stages[0].dataset.stage;
+    stages.forEach(stage => { stage.hidden = stage.dataset.stage !== stageId; });
     buttons.forEach(button => {
-      if (button.dataset.target === tag) button.setAttribute('aria-current', 'step');
+      if (button.dataset.target === stageId) button.setAttribute('aria-current', 'step');
       else button.removeAttribute('aria-current');
     });
-    if (updateHash) history.replaceState(null, '', '#' + tag);
+    if (updateHash) history.replaceState(null, '', '#' + stageId);
   }
   buttons.forEach(button => button.addEventListener('click', () => selectStage(button.dataset.target, true)));
   document.querySelectorAll('.copy-command').forEach(button => {
@@ -356,13 +275,6 @@ JS = r'''
       }
     });
   });
-  document.querySelectorAll('.file-selector').forEach(select => {
-    select.addEventListener('change', () => {
-      select.closest('.stage').querySelectorAll('.file-panel').forEach(panel => {
-        panel.hidden = panel.dataset.file !== select.value;
-      });
-    });
-  });
   document.querySelector('#font-size').addEventListener('change', event => {
     const size = Number(event.target.value);
     if ([14, 16, 18, 20].includes(size)) {
@@ -375,30 +287,29 @@ JS = r'''
 '''
 
 
-def build(repo, metadata, output, source_files=SOURCE_FILES):
+def build(root, metadata, output):
     stages = read_stages(metadata)
-    versions = load_versions(repo, stages, source_files)
+    versions = load_versions(root, stages)
     navigation = []
     articles = []
     for index, stage in enumerate(versions):
         current = ' aria-current="step"' if not index else ""
         navigation.append(
-            f'<button class="stage-link" type="button" data-target="{escape(stage["tag"])}"{current}>'
-            f'{escape(stage["title"])}<small>{escape(stage["tag"])}</small></button>'
+            f'<button class="stage-link" type="button" data-target="{escape(stage["id"])}"{current}>'
+            f'{escape(stage["title"])}<small>{escape(stage["file"])}</small></button>'
         )
-        articles.append(render_stage(repo, stage, versions[index - 1] if index else None,
-                                     index, source_files))
+        articles.append(render_stage(root, stage, versions[index - 1] if index else None, index))
     document = f'''<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>从文字接龙到 AI Agent · 代码演进</title><style>{CSS}</style></head>
 <body><div class="layout"><aside>
-  <div class="brand">45 MINUTES / SIX VERSIONS</div>
+  <div class="brand">45 MINUTES / SIX STAGES</div>
   <p class="course-title">从文字接龙<br>到 AI Agent</p>
   <p class="subtitle">用一个 API 构建智能体</p>
   <nav aria-label="教学阶段">{''.join(navigation)}</nav>
-  <p class="sidebar-note">点击阶段即可查看真实 Git 版本。<br>绿：新增 · 红：删除 · 紫：修改<br>终端切换版本后直接运行 agent.py。</p>
+  <p class="sidebar-note">点击阶段即可查看对应文件。<br>绿：新增 · 红：删除 · 紫：修改<br>终端直接运行 agent_v0.py 至 agent_v5.py。</p>
 </aside><main>
-  <div class="page-controls"><p class="page-note">离线代码演进界面 · 源码来自六个 Git tags · 示例来自已保存运行记录 · 无需联网</p>
+  <div class="page-controls"><p class="page-note">离线代码演进界面 · 源码来自六个独立 Python 文件 · 示例来自真实程序输出转录 · 无需联网</p>
     <label class="font-control">代码字号 <select id="font-size" aria-label="代码字号"><option value="14">14 px</option><option value="16">16 px</option><option value="18">18 px · 投影</option><option value="20">20 px · 投影</option></select></label></div>
   <noscript>请启用浏览器 JavaScript 以切换阶段；源码与运行记录均已内嵌在本文件中。</noscript>
   {''.join(articles)}
@@ -411,15 +322,16 @@ def build(repo, metadata, output, source_files=SOURCE_FILES):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--repo", type=Path, default=Path(__file__).resolve().parent)
-    parser.add_argument("--metadata", type=Path, help="阶段说明 JSON；默认读取仓库中的 web/stages.json")
-    parser.add_argument("--output", type=Path, help="输出 HTML；默认写入仓库中的 web/index.html")
+    parser.add_argument("--repo", type=Path, default=Path(__file__).resolve().parent,
+                        help="包含六个教学文件的项目目录")
+    parser.add_argument("--metadata", type=Path, help="阶段说明 JSON；默认 web/stages.json")
+    parser.add_argument("--output", type=Path, help="输出 HTML；默认 web/index.html")
     args = parser.parse_args(argv)
-    repo = args.repo.resolve()
+    root = args.repo.resolve()
     try:
-        output = build(repo, args.metadata or repo / "web" / "stages.json",
-                       args.output or repo / "web" / "index.html")
-    except (BuildError, OSError, subprocess.TimeoutExpired) as exc:
+        output = build(root, args.metadata or root / "web" / "stages.json",
+                       args.output or root / "web" / "index.html")
+    except (BuildError, OSError) as exc:
         print(f"构建失败：{exc}", file=sys.stderr)
         return 1
     print(f"已生成：{output}\n可直接在浏览器中打开；页面内嵌全部源码、diff 和已保存输出。")

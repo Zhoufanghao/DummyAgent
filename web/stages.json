@@ -1,62 +1,62 @@
 [
   {
-    "tag": "v0-token",
-    "ref": "teaching-cleanup/v0-token",
     "title": "Stage 0 · 文字接龙",
     "ability": "查看模型如何逐个生成 Token，以及 API 返回的候选概率。",
     "why": "先把大段回答拆成可观察的生成步骤，建立对上下文与采样的直觉。",
     "can_do": "自由输入文本前缀，展示真实 logprobs、候选 Token 和最终生成文本；每个前缀相互独立。",
     "focus": "Pr[token | context]：上下文 → 下一个 Token → 更新上下文",
-    "minutes": "04—11 分钟"
+    "minutes": "04—11 分钟",
+    "id": "v0",
+    "file": "agent_v0.py"
   },
   {
-    "tag": "v1-memory",
-    "ref": "teaching-cleanup/v1-memory",
     "title": "Stage 1 · 对话历史",
     "ability": "用应用程序维护的 history 保存并重新提交对话。",
     "why": "两次独立调用不会自动共享此前的实验编号。",
     "can_do": "自由进行多轮文本对话，观察应用如何保存并重新提交此前的提问和回答。",
     "focus": "history 保存用户输入和模型回答",
-    "minutes": "11—17 分钟"
+    "minutes": "11—17 分钟",
+    "id": "v1",
+    "file": "agent_v1.py"
   },
   {
-    "tag": "v2-chat",
-    "ref": "teaching-cleanup/v2-chat",
     "title": "Stage 2 · 结构化消息",
     "ability": "把文本历史改为 system / user / assistant 消息。",
     "why": "需要明确区分消息身份，避免手工拼接的边界含糊。",
     "can_do": "自由进行角色对话，观察结构化消息；公开 Chat Template 作为独立辅助演示。",
     "focus": "Messages 表示消息身份和对话顺序",
-    "minutes": "17—22 分钟"
+    "minutes": "17—22 分钟",
+    "id": "v2",
+    "file": "agent_v2.py"
   },
   {
-    "tag": "v3-tools",
-    "ref": "teaching-cleanup/v3-tools",
     "title": "Stage 3 · 工具调用",
     "ability": "让模型请求调用由 Python 实现的计算工具。",
     "why": "需要把数值计算交给可靠的外部程序执行。",
-    "can_do": "自由提出计算问题，观察 Tool Schema、Tool Call、参数校验与 Tool Result；每个用户轮只回填一次工具结果。",
-    "focus": "模型提出调用；应用程序验证并执行",
-    "minutes": "22—30 分钟"
+    "can_do": "自由提出计算问题，观察 Tool Schema、Tool Call、calculator 执行与 Tool Result；每个用户轮只回填一次工具结果。",
+    "focus": "模型提出调用；Python 执行并回填结果",
+    "minutes": "22—30 分钟",
+    "id": "v3",
+    "file": "agent_v3.py"
   },
   {
-    "tag": "v4-agent-loop",
-    "ref": "teaching-cleanup/v4-agent-loop",
     "title": "Stage 4 · Agent 循环",
     "ability": "把工具结果重新加入上下文，让模型继续决定下一步。",
     "why": "多步骤任务需要反复观察执行反馈，并据此继续行动。",
-    "can_do": "自由提出多步骤计算任务，跟随多次工具调用直到最终回答；每个任务最多100轮。",
+    "can_do": "自由提出多步骤计算任务，工具结果进入上下文，模型继续调用工具或返回最终回答。",
     "focus": "调用 → 执行 → 反馈 → 再次调用",
-    "minutes": "30—39 分钟 · 前半"
+    "minutes": "30—39 分钟 · 前半",
+    "id": "v4",
+    "file": "agent_v4.py"
   },
   {
-    "tag": "v5-execution",
-    "ref": "teaching-cleanup/v5-execution",
-    "title": "Stage 5 · 隔离执行",
-    "ability": "在受限实验环境中读取 CSV、生成并执行代码、保存报告。",
-    "why": "执行能力需要配合超时、迭代上限、目录限制和隔离边界。",
-    "can_do": "自由提出隔离实验目录内的任务，在同一会话中读取 CSV、生成代码和报告；每个任务最多100轮。",
-    "focus": "受限执行工具 + Agent 循环 = 课堂演示",
-    "minutes": "30—39 分钟 · 后半"
+    "title": "Stage 5 · Bash 执行",
+    "ability": "在启动目录运行 Bash 命令，读取 CSV、生成并执行代码、保存报告。",
+    "why": "把 calculator 换成 Bash 执行工具，沿用同一个反馈循环完成文件任务。",
+    "can_do": "直接操作当前目录：查看文件、生成代码、运行代码并读取报告；单次命令最多 60 秒。",
+    "focus": "Bash 执行工具 + Agent 循环",
+    "minutes": "30—39 分钟 · 后半",
+    "id": "v5",
+    "file": "agent_v5.py"
   }
 ]

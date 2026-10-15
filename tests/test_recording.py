@@ -1,15 +1,14 @@
-"""教师录制回归；所有响应均为明确的unit fixture，不请求API。"""
+"""教师程序录制回归；只运行本地fixture脚本，不请求API。"""
 
 import contextlib
-import copy
 import io
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
-from types import SimpleNamespace as NS
 import unittest
 from unittest.mock import patch
 
@@ -17,138 +16,115 @@ import preflight
 import verify_live
 
 
-def token_events(reason="length"):
-    return [{"endpoint": "completions.create", "request": {"prompt": prompt},
-             "response": {"id": f"unit-fixture-{index}", "model": "unit-fixture-model",
-                          "choices": [{"finish_reason": reason, "text": "fixture continuation",
-                                       "logprobs": {"tokens": ["续"], "token_logprobs": [-0.2],
-                                                    "top_logprobs": [{"续": -0.2, "答": -2.0}]}}]},
-             "elapsed_seconds": 0.001}
-            for index, prompt in enumerate(verify_live.SCENARIOS["v0-token"])]
-
-
 class RecordingTests(unittest.TestCase):
-    def test_namespaced_defaults_remain_under_partial_candidate_mapping(self):
-        with patch.dict(os.environ, {"DUMMY_AGENT_STAGE_REFS": '{"v0-token":"candidate-fixture"}'}):
-            refs = verify_live.stage_refs()
-        self.assertEqual(refs["v0-token"], "candidate-fixture")
-        self.assertEqual(refs["v5-execution"], "teaching-cleanup/v5-execution")
-        self.assertEqual(set(refs), set(verify_live.STAGES))
+    def fixture_repo(self):
+        temporary = tempfile.TemporaryDirectory(prefix="program-recording-unit-fixture-")
+        self.addCleanup(temporary.cleanup)
+        root = Path(temporary.name)
+        shutil.copytree(verify_live.ROOT / "data", root / "data")
+        return root
 
-    def test_request_is_snapshot_and_endpoints_are_distinct(self):
-        class Response:
-            def model_dump(self, **kwargs):
-                return {"id": "unit-test-fixture"}
+    def run_fixture(self, root, stage="v0"):
+        with contextlib.redirect_stdout(io.StringIO()):
+            return verify_live.verify_stage(root, stage)
 
-        client = NS(completions=NS(create=lambda **params: Response()),
-                    chat=NS(completions=NS(create=lambda **params: Response())))
-        recorder = verify_live.RecordingClient(client)
-        messages = [{"role": "user", "content": "first"}]
-        recorder.chat.completions.create(messages=messages)
-        messages.append({"role": "assistant", "content": "later"})
-        recorder.completions.create(prompt="fixture")
-        self.assertEqual(len(recorder.events[0]["request"]["messages"]), 1)
-        self.assertEqual([event["endpoint"] for event in recorder.events],
-                         ["chat.completions.create", "completions.create"])
+    def test_real_subprocess_records_exact_combined_output_and_eof_without_git(self):
+        root = self.fixture_repo()
+        source = ("# explicit local unit fixture; no model/API\n"
+                  "import sys\nMODEL = 'unit-fixture-model'\n"
+                  "questions = list(sys.stdin)\n"
+                  "print('fixture stdout', flush=True)\n"
+                  "print('fixture stderr', file=sys.stderr, flush=True)\n"
+                  "print('questions:', len(questions))\n")
+        (root / "agent_v0.py").write_text(source)
+        recording = self.run_fixture(root)
+        self.assertEqual(recording["transcript"], "fixture stdout\nfixture stderr\nquestions: 2\n")
+        self.assertEqual(recording["kind"], "live-program-recording")
+        self.assertEqual(recording["source_file"], "agent_v0.py")
+        self.assertEqual(recording["source_sha256"], verify_live.file_sha256(root / "agent_v0.py"))
+        self.assertEqual(recording["model_requested"], "unit-fixture-model")
+        self.assertFalse((root / ".git").exists())
+        self.assertNotIn("events", recording)
+        self.assertNotIn("source_commit", recording)
+        self.assertNotIn("runtime_sha256", recording)
 
-    def test_teacher_import_does_not_require_sdk_or_legacy_modules(self):
-        root = Path(__file__).resolve().parents[1]
+    def test_unknown_requested_model_stays_unknown_and_environment_is_configuration_only(self):
+        self.assertIsNone(verify_live.requested_model("print('unit fixture')\n"))
+        source = "import os\nMODEL = os.environ.get('DEEPSEEK_MODEL', 'deepseek-flash')\n"
+        with patch.dict(os.environ, {"DEEPSEEK_MODEL": "unit-configured-model"}):
+            self.assertEqual(verify_live.requested_model(source), "unit-configured-model")
+        with patch.dict(os.environ):
+            os.environ.pop("DEEPSEEK_MODEL", None)
+            self.assertEqual(verify_live.requested_model(source), "deepseek-flash")
+
+    def test_preflight_uses_file_hash_without_importing_or_requiring_function_names(self):
+        root = self.fixture_repo()
+        path = root / "agent_v0.py"
+        path.write_text("raise RuntimeError('must not execute during preflight')\n")
+        preflight.check_structure(root, "v0")
+        recording = {"kind": "live-program-recording", "stage": "v0", "source_file": path.name,
+                     "source_sha256": verify_live.file_sha256(path), "model_requested": None,
+                     "inputs": list(verify_live.SCENARIOS["v0"]), "recorded_at": "unit-fixture",
+                     "transcript": "explicit unit fixture transcript\n"}
+        saved = root / "recording.json"
+        verify_live.save_recording(saved, recording)
+        self.assertEqual(preflight.check_recording(root, "v0", saved), recording)
+        path.write_text("print('changed unit fixture')\n")
+        with self.assertRaisesRegex(ValueError, "SHA"):
+            preflight.check_recording(root, "v0", saved)
+
+    def test_preflight_rejects_local_runtime_dependencies(self):
+        root = self.fixture_repo()
+        (root / "tools.py").write_text("# unit fixture helper\n")
+        (root / "agent_v0.py").write_text("import tools\n")
+        with self.assertRaisesRegex(ValueError, "独立运行"):
+            preflight.check_structure(root, "v0")
+
+    def test_failed_process_does_not_write_success_recording_or_print_key(self):
+        root = self.fixture_repo()
+        (root / "agent_v0.py").write_text("import sys\nprint('unit fixture failure')\nsys.exit(2)\n")
+        destination = root / "recordings"
+        output = io.StringIO()
+        with patch.object(verify_live, "ROOT", root), \
+                patch.dict(os.environ, {"DEEPSEEK_API_KEY": "UNIT-SECRET-MUST-NOT-PRINT"}), \
+                contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+            result = verify_live.main(["--stage", "v0", "--output-dir", str(destination)])
+        self.assertEqual(result, 1)
+        self.assertFalse(destination.exists())
+        self.assertIn("unit fixture failure", output.getvalue())
+        self.assertNotIn("UNIT-SECRET-MUST-NOT-PRINT", output.getvalue())
+
+    def test_v5_records_independently_checked_statistics_and_actual_artifact_hashes(self):
+        root = self.fixture_repo()
+        analysis = ("import csv, json, statistics\nfrom pathlib import Path\n"
+                    "with open('data/temperature.csv') as stream:\n"
+                    "    values = [float(row['temperature']) for row in csv.DictReader(stream)]\n"
+                    "stats = dict(count=len(values), mean=statistics.mean(values), max=max(values), min=min(values))\n"
+                    "Path('result.json').write_text(json.dumps(stats))\n"
+                    "Path('report.md').write_text('样本数：10\\n平均温度：24.5 °C\\n最高温度：29 °C\\n最低温度：20 °C\\n')\n")
+        source = ("# explicit local unit fixture; no API\nimport subprocess, sys\nfrom pathlib import Path\n"
+                  "MODEL = 'unit-fixture-model'\nlist(sys.stdin)\n"
+                  f"Path('analysis.py').write_text({analysis!r})\n"
+                  "subprocess.run([sys.executable, 'analysis.py'], check=True)\n"
+                  "print('unit fixture artifacts complete')\n")
+        (root / "agent_v5.py").write_text(source)
+        recording = self.run_fixture(root, "v5")
+        self.assertEqual(recording["transcript"], "unit fixture artifacts complete\n")
+        self.assertEqual(recording["validation"]["statistics"],
+                         {"count": 10, "mean": 24.5, "max": 29, "min": 20})
+        self.assertEqual(set(recording["validation"]["artifact_sha256"]), set(verify_live.ARTIFACTS))
+        self.assertEqual(recording["data_sha256"], verify_live.file_sha256(root / "data/temperature.csv"))
+        path = root / "recordings/v5.json"
+        verify_live.save_recording(path, recording)
+        preflight.check_recording(root, "v5", path)
+        (root / "data/temperature.csv").write_text("temperature\n0\n")
+        with self.assertRaisesRegex(ValueError, "CSV"):
+            preflight.check_recording(root, "v5", path)
+
+    def test_teacher_import_needs_only_standard_library(self):
         result = subprocess.run([sys.executable, "-S", "-c", "import preflight, verify_live"],
-                                cwd=root, capture_output=True, text=True)
+                                cwd=verify_live.ROOT, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-
-    def test_token_length_is_expected_but_chat_truncation_is_rejected(self):
-        verify_live.validate_events("v0-token", token_events(), verify_live.SCENARIOS["v0-token"])
-        with self.assertRaisesRegex(ValueError, "截断"):
-            verify_live.validate_events("v2-chat", token_events(), verify_live.SCENARIOS["v2-chat"])
-
-    def test_recording_is_bound_to_agent_tools_and_commit(self):
-        with tempfile.TemporaryDirectory(prefix="recording-unit-fixture-") as folder:
-            directory = Path(folder)
-            (directory / "agent.py").write_text("# explicitly marked unit fixture\n")
-            (directory / "tools.py").write_text("# tools unit fixture\n")
-            hashes = verify_live.runtime_hashes(directory)
-            recording = {"kind": "live-api-recording", "stage": "v0-token",
-                         "source_sha256": hashes["agent.py"], "runtime_sha256": hashes,
-                         "source_commit": "unit-fixture-commit", "mode": "interactive",
-                         "inputs": list(verify_live.SCENARIOS["v0-token"]),
-                         "recorded_at": "unit-fixture-not-a-live-run", "transcript": "unit fixture",
-                         "model_requested": "unit-fixture-model", "events": token_events()}
-            path = directory / "recording.json"
-            verify_live.save_recording(path, recording)
-            self.assertEqual(preflight.check_recording(directory, "v0-token", "unit-fixture-commit", path),
-                             recording)
-            with self.assertRaisesRegex(ValueError, "提交"):
-                preflight.check_recording(directory, "v0-token", "different-commit", path)
-            (directory / "tools.py").write_text("# changed unit fixture\n")
-            with self.assertRaisesRegex(ValueError, "运行文件"):
-                preflight.check_recording(directory, "v0-token", "unit-fixture-commit", path)
-            self.assertEqual([entry.name for entry in directory.glob(".recording-*")], [])
-
-    def test_failed_live_validation_does_not_write_a_recording_or_print_key(self):
-        fake_sdk = NS(OpenAI=lambda **kwargs: contextlib.nullcontext(NS()))
-        with tempfile.TemporaryDirectory(prefix="recording-failure-fixture-") as folder:
-            destination = Path(folder) / "new-recordings"
-            output = io.StringIO()
-            with patch.dict(os.environ, {"DEEPSEEK_API_KEY": "UNIT-SECRET-MUST-NOT-PRINT",
-                                         "DUMMY_AGENT_STAGE_REFS": "{}"}), \
-                    patch.dict(sys.modules, {"openai": fake_sdk}), \
-                    patch.object(verify_live, "verify_stage", side_effect=ValueError("unit fixture failure")), \
-                    contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
-                result = verify_live.main(["--stage", "v0-token", "--output-dir", str(destination)])
-            self.assertEqual(result, 1)
-            self.assertFalse(destination.exists())
-            self.assertNotIn("UNIT-SECRET-MUST-NOT-PRINT", output.getvalue())
-
-    def test_memory_answers_must_preserve_the_real_identifier(self):
-        questions = verify_live.SCENARIOS["v1-memory"]
-        events = [{"request": {"prompt": questions[0]}, "response": {
-            "id": "unit-fixture-1", "model": "unit-fixture-model",
-            "choices": [{"finish_reason": "stop", "text": "记住了A102"}]}},
-            {"request": {"prompt": questions[0] + "记住了A102" + questions[1]}, "response": {
-                "id": "unit-fixture-2", "model": "unit-fixture-model",
-                "choices": [{"finish_reason": "stop", "text": "编号是A102"}]}}]
-        verify_live.validate_events("v1-memory", events, questions)
-        events[1]["response"]["choices"][0]["text"] = "不记得"
-        with self.assertRaisesRegex(ValueError, "A102"):
-            verify_live.validate_events("v1-memory", events, questions)
-
-    def test_v5_accepts_separate_successful_result_and_report_reads(self):
-        questions = verify_live.SCENARIOS["v5-execution"]
-        messages = [{"role": "system", "content": "unit fixture"},
-                    {"role": "user", "content": questions[0]}]
-        events = []
-
-        def tool(command):
-            identifier = f"unit-fixture-call-{len(events)}"
-            call = {"id": identifier, "type": "function", "function": {
-                "name": "bash", "arguments": json.dumps({"command": command})}}
-            message = {"role": "assistant", "tool_calls": [call]}
-            events.append({"request": {"messages": copy.deepcopy(messages)}, "response": {
-                "id": identifier, "model": "unit-fixture-model", "choices": [
-                    {"finish_reason": "tool_calls", "message": message}]}})
-            messages.extend([message, {"role": "tool", "tool_call_id": identifier,
-                                      "content": '{"ok":true,"exit_code":0,"output":"unit fixture"}'}])
-
-        def answer():
-            message = {"role": "assistant", "content": "unit fixture final answer"}
-            events.append({"request": {"messages": copy.deepcopy(messages)}, "response": {
-                "id": f"unit-fixture-answer-{len(events)}", "model": "unit-fixture-model", "choices": [
-                    {"finish_reason": "stop", "message": message}]}})
-            messages.append(message)
-
-        for command in ("cat data/temperature.csv", "python3 analysis.py", "cat result.json", "cat report.md"):
-            tool(command)
-        answer()
-        messages.append({"role": "user", "content": questions[1]})
-        tool("cat result.json")
-        tool("cat report.md")
-        answer()
-        verify_live.validate_events("v5-execution", events, questions)
-        # An unsuccessful read is not evidence that the second-turn report was checked.
-        events[-1]["request"]["messages"][-1]["content"] = '{"ok":false,"error":"fixture failure"}'
-        with self.assertRaisesRegex(ValueError, "跨用户轮"):
-            verify_live.validate_events("v5-execution", events, questions)
 
 
 if __name__ == "__main__":

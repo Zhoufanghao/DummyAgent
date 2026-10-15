@@ -1,34 +1,32 @@
 # PPT 内容大纲
 
 课程：《从文字接龙到 AI Agent：用一个 API 构建智能体》  
-时长：45 分钟，16 页主讲内容。这里交付可直接制作 PPT 的逐页大纲，不包含 PPTX 文件。
+时长：45 分钟，16 页主讲内容。本文件为可直接制作 PPT 的逐页大纲，不包含 PPTX。
 
-实时演示默认 DeepSeek-V4.1-Flash，API ID 为 `deepseek-flash`（2026-10-15 核查 [官方更新](https://api-docs.deepseek.com/updates/) 的 2026-09-10 记录）；别名未来可能变化。第 8 页 V3 模板是明确标注的历史模型对照。
+实时演示默认 DeepSeek-V4.1-Flash，API ID `deepseek-flash`（2026-10-15 核查[官方更新](https://api-docs.deepseek.com/updates/)的 2026-09-10 记录）；别名未来可能变化。第 8 页只展示明确标注的历史 V3 模板。
 
-每页只承载一个主问题；代码与真实输出以网页版本浏览器、终端为主。正文建议不小于 24 pt，代码不小于 20 pt。每段代码只截取需要解释的部分，不把整个程序缩到一页。可编辑的流程用原生文本和箭头制作，实际 API 输出采用真实录制片段并标明 LIVE/REPLAY。
-
-六阶段实际 Tag 为 `teaching-cleanup/<阶段ID>`，共享 v0—v5 标签保持不动，表中用简短阶段 ID。六个教学 Tag 各自是独立程序：先 `git switch --detach teaching-cleanup/<阶段ID>`，再 `python agent.py`，在 `$ ` 后手工输入本页示例或学生问题。没有命令行参数或内置固定演示；空白行跳过，Ctrl+D 结束，Ctrl+C 平稳退出。v0 输入独立前缀，v1—v5 保存当前会话上下文；重新启动开始新对话。v5 还保留同一会话的实验文件，结束时安全导出。课堂程序只需 `agent.py`，v3 起再带 `tools.py`。当前 v5 是原受限基线的精简参考；另行扩展的新 v5 待功能确定后再合入精简。
+六份独立文件 `agent_v0.py`—`agent_v5.py` 同时放在项目根目录，直接运行对应文件，无版本切换。各自内联工具代码，用 `$ ` 输入；空白行跳过，Ctrl+D 或 Ctrl+C 结束。重新运行开始全新对话。每页只承载一个主问题，正文建议不小于 24 pt、代码不小于 20 pt；完整源码和差异交给网页呈现。
 
 | 页 | 时间 | 标题 | 屏幕内容 | 讲述与演示 | 备注 / 来源 |
-| --- | --- | --- | --- | --- | --- |
-| 1 | 00:00—00:40 | 从文字接龙到 AI Agent：用一个 API 构建智能体 | 课程题目；一行任务：CSV → 温度统计 → Markdown 报告 | 说明今天理解关键机制，不要求记住全部代码 | 使用用户指定课程名；不增加产品口号 |
-| 2 | 00:40—04:00 | 温度报告任务 | 用户原始任务；CSV 局部；结果报告局部 | 切 v5 后运行 agent.py，输入任务；或在网页展示 REPLAY。看到工具请求、结果与文件，独立对照 10 行、24.5 / 29 / 20 ℃ | 录制时间与模型来自真实记录；说明重放不会重新创建文件 |
-| 3 | 04:00—05:00 | 最小 Completion 调用 | `OpenAI(...)` 与 `client.completions.create(...)` 中约 8—12 行；框出 prompt 与 logprobs | SDK 是客户端，请求地址指向 DeepSeek。FIM Beta 只传前缀，用于续写 | [FIM API](https://api-docs.deepseek.com/api/create-completion/)，模型与参数以备课实测为准 |
-| 4 | 05:00—08:20 | 下一个 token 的条件概率 | 左：当前上下文；右：某一步真实 top-k 与选中的 token；下方公式 `Pr[token \| context]` | token 指下一个生成项，context 指已有上下文。停在一个位置，说明追加已生成 token 后继续；交互可输入任意前缀。Token 不等于汉字；top-k 不覆盖全部概率 | 表格直接取 API logprobs；概率为 exp(logprob)，不另行归一化；非置信度 |
-| 5 | 08:20—11:00 | Temperature 与采样 | 相同前缀、不同 temperature 的两次真实输出；只放 2—3 步 | 只改 agent.py 顶部 TEMPERATURE：默认 0，对照 0.8；TOKEN_STEPS 保持 12。比较后改回 0。低温不保证正确或逐字复现 | 当前API模式的参数支持见 [Chat API](https://api-docs.deepseek.com/api/create-chat-completion/) 与 [FIM API](https://api-docs.deepseek.com/api/create-completion/) |
-| 6 | 11:00—17:00 | 对话历史 | 上：新会话中只有编号问题；下：带 history 的请求包含 A102。旁边只显示新增的保存与拼接代码 | 新会话只问编号；重启后手工输入 A102 再问编号。直接比较实际请求；可换任意编号。说明有限上下文与长期记忆的区别 | 对比证据是实际提交内容，不能要求无历史模型必然答错 |
-| 7 | 17:00—18:30 | 结构化消息 | 三条短 messages：system、user、assistant；各一行作用说明 | 文本拼接改为角色明确的消息。role 表达身份，不赋予宿主机执行权限 | [DeepSeek Chat API](https://api-docs.deepseek.com/api/create-chat-completion/) |
-| 8 | 18:30—22:00 | 一个公开模型的 Chat Template | 标注“DeepSeek-V3 公开 checkpoint”；五行序列化示例；结束标记着色 | 只展示该模型的 User、Assistant、EOS；system 正文在 BOS 后。随后切到命令行简易聊天 | [固定版本 tokenizer_config.json](https://huggingface.co/deepseek-ai/DeepSeek-V3/blob/d990f047635ab4866b112caff006a18ce221605f/tokenizer_config.json)。不是对当前托管 API 内部模板的披露 |
-| 9 | 22:00—25:00 | Calculator 工具说明 | 一条复杂算式；精简 schema：名称、expression 字符串、必填 | 先展示不调用工具的真实答复，再看 schema。即使纯文本算对，也说明为何需要可检查执行 | 工具说明不是函数实现；calculator 只允许受限算术 |
-| 10 | 25:00—30:00 | 一次工具调用 | `LLM → Tool Call → 参数校验 → Python → Tool Result → LLM`；下方放真实 tool_call / result 配对 | 定位真正执行 calculator 的代码与 tool_call_id；默认可自由提问与追问，每个用户轮只进行一次工具请求与回填后的回答 | [DeepSeek Chat API tools 字段](https://api-docs.deepseek.com/api/create-chat-completion/)；外部程序执行；日志不是隐藏思维链 |
-| 11 | 30:00—33:30 | Agent Loop | 实际循环约一屏；将“加入结果”“继续”“返回”“达到轮数上限”突出显示 | v3 单轮分支变为 v4 循环。手工输入先计算、等结果再除以 3 的任务，检查前后依赖；每个任务重新计数，对话保留 | 顶部 MAX_ITERATIONS = 100；达到上限只表示停止；不引入框架；投影以真实 agent.py 为准 |
-| 12 | 33:30—34:50 | 受限执行环境 | 保留循环轮廓，把 calculator 标成 bash 工具；四项约束：超时、轮数、工作目录、危险操作防护 | v4 → 本轮 v5 参考版的增量是工具能力与隔离。指出执行隔离的位置；新版 Bash 功能合入延后 | cwd 与命令过滤不等于完整沙箱；执行环境不满足要求则停止，不转为宿主机无限制执行 |
-| 13 | 34:50—39:00 | 再做一次温度报告 | 三个核验点：读到数据、计算结果、写入文件；实际报告中的三项统计 | 手工输入报告任务或展示对应真实 REPLAY；同一隔离目录可连续提问。结束后查看导出产物；若轨迹有修正，沿错误→下一步讲解 | CSV 基准：10 行，20—29 ℃；24.5 / 29 / 20 ℃。正确性由教师外部验证，文件安全检查保留在 tools.py；没有发生的错误不编造 |
-| 14 | 39:00—41:20 | Coding Agent 与 MCP | 两行历史事件：2025-05-16 Codex 研究预览；2024-11-25 MCP 开源发布。分别指向循环与工具接入位置 | Codex 约75秒：读写代码与测试反馈。MCP约65秒：统一接入协议，任务循环仍由应用实现 | [Codex 原始发布](https://openai.com/index/introducing-codex/) 已标过时，仅作历史案例；[MCP 原始发布](https://www.anthropic.com/news/model-context-protocol) |
-| 15 | 41:20—43:00 | Prompt Injection 与权限边界 | 日期2025-11-24；外部文件 → 上下文 → 工具请求；执行工具旁注明权限与隔离 | 说明防护进展新闻；用自拟 CSV 注入短句演示信任边界，不执行攻击 | [Anthropic 官方文章](https://www.anthropic.com/news/prompt-injection-defenses)。邮件外泄场景为原文假设示例，不是披露的真实事故 |
-| 16 | 43:00—45:00 | 四层机制与完整程序 | token → 上下文 → 工具 → 反馈循环；下方列六个 Git tag | 回到完整 agent.py。退出票：为什么生成函数名不等于执行？ | 参考答：应用须解析校验并调用函数，结果还须进入后续上下文 |
+|---|---|---|---|---|---|
+| 1 | 00:00—00:40 | 从文字接龙到 AI Agent | 课程题目；CSV → 温度统计 → Markdown 报告 | 今天理解关键机制，不要求抄完代码 | 使用指定课程名 |
+| 2 | 00:40—04:00 | 温度报告任务 | 用户任务、CSV 局部、实际报告 | `python agent_v5.py` 后输入任务；或展示明确标记的 REPLAY。独立核对 10 行、24.5 / 29 / 20 ℃ | 文件直接留在启动目录；回放不会重建文件 |
+| 3 | 04:00—05:00 | 最小 Completion | `OpenAI(...)` 与 `client.completions.create(...)`，框出 prompt/logprobs | SDK 为客户端，服务地址指向 DeepSeek；FIM Beta 只给前缀 | [FIM API](https://api-docs.deepseek.com/api/create-completion/) |
+| 4 | 05:00—08:20 | 下一个 token 的条件概率 | 当前上下文、真实 top-k、生成项；公式 `Pr[token \| context]` | 运行 `agent_v0.py`。逐位置展开一次真实响应，追加已生成 token 后继续；token 不等于汉字 | exp(logprob)，不归一化 top-k；候选不是完整分布或事实置信度 |
+| 5 | 08:20—11:00 | Temperature 与采样 | 同一前缀、温度 0 与 0.8 的真实输出 | 只改 v0 顶部 TEMPERATURE 并重启，TOKEN_STEPS 保持 12；比较后恢复 0 | 低温不保证正确或逐字复现；[FIM 参数](https://api-docs.deepseek.com/api/create-completion/) |
+| 6 | 11:00—17:00 | 对话历史 | 无编号历史的请求；带 A102 的 history；保存与拼接代码 | `agent_v1.py` 新会话只问编号；重启后先告知 A102 再问。比较实际提交文本 | 不要求无历史模型必然答错；有限上下文不等于长期记忆 |
+| 7 | 17:00—18:30 | 结构化消息 | system/user/assistant 三条短消息 | 打开 `agent_v2.py`，解释身份与顺序；role 不是执行授权 | [Chat API](https://api-docs.deepseek.com/api/create-chat-completion/) |
+| 8 | 18:30—22:00 | 一个公开 Chat Template | 标注“公开 DeepSeek-V3 checkpoint”；五行序列化示例 | 运行 `chat_template_demo.py`，再运行 `agent_v2.py` 做两轮对话 | [固定 tokenizer_config.json](https://huggingface.co/deepseek-ai/DeepSeek-V3/blob/d990f047635ab4866b112caff006a18ce221605f/tokenizer_config.json)；不代表当前托管 API 内部模板 |
+| 9 | 22:00—25:00 | Calculator 工具说明 | 同一复杂算式；工具名称和 expression；内联 calculator | 先在 `agent_v2.py` 看纯文本回答，再打开 v3 Schema。指出 `eval(expression)` 的实际计算位置 | Schema 是说明书；函数实现就在本文件 |
+| 10 | 25:00—30:00 | 一次工具调用 | `LLM → Tool Call → Python → Tool Result → LLM`；真实 call/result 配对 | `python agent_v3.py` 后输入相同算式。定位执行和 tool_call_id；每个用户轮只做一次工具请求与回填 | [Chat API tools 字段](https://api-docs.deepseek.com/api/create-chat-completion/)；公开轨迹不是隐藏思考链 |
+| 11 | 30:00—33:30 | Agent Loop | v4 的实际 while True；结果回填、continue、结束分支 | `python agent_v4.py`，先计算、等结果再除以 3；检查下一轮真实上下文 | 无轮数上限；模型返回最终文本结束当前任务 |
+| 12 | 33:30—34:50 | Bash 执行 | v5 的工具 Schema、run_bash、subprocess 调用、BASH_TIMEOUT | calculator 换成 Bash，循环保持；`["bash", "-c", command]` 直接执行，stdout/stderr 回填 | 当前目录执行、单命令 60 秒；不包含旧版隔离与导出机制 |
+| 13 | 34:50—39:00 | 再做温度报告 | 读到数据、算出结果、写入文件的实际证据 | 运行 `agent_v5.py` 输入开场任务，查看当前目录报告；按真实错误与反馈讲修正 | 教师独立核对 10 行、平均 24.5、最大 29、最小 20 ℃；无固定验收分支 |
+| 14 | 39:00—41:20 | Coding Agent 与 MCP | 2025-05-16 Codex 研究预览；2024-11-25 MCP 开源发布 | Codex 对应代码与测试反馈循环；MCP 对应统一工具接入，循环仍由应用实现 | [Codex 原始发布](https://openai.com/index/introducing-codex/)只作历史案例；[MCP 原始发布](https://www.anthropic.com/news/model-context-protocol) |
+| 15 | 41:20—43:00 | Prompt Injection 与信任边界 | 2025-11-24；外部内容 → 上下文 → 工具请求 | 说明外部内容可能改变任务方向，用自拟 CSV 短句说明；不执行攻击 | [官方防护进展](https://www.anthropic.com/news/prompt-injection-defenses)；原文邮件场景是假设，不是真实事故披露 |
+| 16 | 43:00—45:00 | 四层机制与完整程序 | token → 上下文 → 工具 → 反馈循环；六份文件名 | 网页依次选择阶段，回到 v5；退出票：为什么生成函数名不等于执行？ | 参考答：外部程序须解析请求、调用函数并回填结果 |
 
-## 第 8 页建议使用的唯一模板文本
+## 第 8 页唯一模板文本
 
 ```text
 <｜begin▁of▁sentence｜>你是实验助手。
@@ -38,22 +36,21 @@
 <｜Assistant｜>
 ```
 
-页内必须可见一句：“公开 DeepSeek-V3 模板示例；不代表当前托管 API 的内部模板。”为易读而换行，勿将排版换行解释为每个角色必然都有的特殊 token。
+页内必须可见：“公开 DeepSeek-V3 模板示例；不代表当前托管 API 的内部模板。”为易读而换行，勿把排版换行讲成角色必有的特殊 token。
 
-## 代码与输出的呈现约定
+## 代码与输出约定
 
-- 网页负责源码、差异与离线真实轨迹；终端用 Git 切换 Tag 后运行 agent.py；PPT 不重复铺满完整代码。
-- 新增、删除、修改同时有文字或符号提示，不能只靠红绿区分。讲解每次只圈一处机制。
-- 教师辅助脚本默认解析 teaching-cleanup/ 教学 Tag；新录制由独立 verify_live.py 驱动真实交互，重新绑定实际快照并核对源码 SHA；课堂 agent.py 不包含录制包装。概率示例必须从 API 实录抽取，未完成时保留“待录制”，不要编造数值。
-- 候选概率主示例使用 temperature=0.8。实测 temperature=0 可显示 0 / -9999 的退化返回；不要将其误讲为温度处理前的原始模型分布，也不要用“100%”暗示事实正确。
-- 维护时保留 tools.py 中 BASH Schema、execute/run_bash 与 seed/export_outputs 的直接扩展边界，不引入额外框架；课堂只圈需要讲解的机制。
-- 工具流程展示函数名、经过验证的参数和执行结果。密钥、授权头与完整环境不可出现在截图里。
-- LIVE、REPLAY、教学示意采用明确文字，学生无需凭视觉风格猜测证据性质。
-- 外部事实的日期和链接放在本页备注；产品现况、套餐价格和榜单排名不进入本课。
+- 网页读取六个实际文件及相邻差异，显示 SHA-256；复制命令直接运行 `python agent_vN.py`，不用 Git。
+- 新增、删除和修改同时有文字或符号提示，不能只靠红绿；每次只圈一个机制。
+- 真实录制由外部 `verify_live.py` 驱动程序，记录 source_file/source_sha256 和原始程序输出；彩排输入独立展示，不伪装成终端回显。它不包含完整 SDK events，未知返回模型不展示。
+- 采样概率只用真实 API 返回；温度 0 的 0 / -9999 退化值不是原始完整分布，不能用 100% 暗示事实正确。
+- LIVE、REPLAY、教学示意用明确文字。REPLAY 不执行命令、不生成文件；源码变化后重新录制。
+- 密钥不出现在截图里。既有历史 Tag 和旧录制仅供追溯，不参与当前课堂运行。
+- 外部事实日期与链接放备注，不增加价格、榜单或产品现况主张。另行开发的新 v5 本轮不纳入。
 
-## 备用页，不计入主讲 45 分钟
+## 备用页，不计入 45 分钟
 
-1. **上下文窗口与长期记忆**：history 有界；检索或数据库是额外机制。本课不实现长期记忆。
-2. **为什么不能直接 eval**：展示受限算术解析的输入边界，不引导学生复制任意字符串执行代码。
-3. **失败也是反馈**：只截取真实彩排中出现的报错、后续请求与改正结果；没有录到就不展示。
-4. **停止条件**：模型返回最终答案、轮数上限、工具超时与执行失败分别意味着什么；“停止”不自动等于“完成”。
+1. **上下文与长期记忆**：history 有限，检索或数据库是额外机制。
+2. **工具实现在哪里**：同一文件中 Schema 描述接口，calculator 或 run_bash 执行动作。
+3. **失败也是反馈**：只展示真实彩排中的错误与后续改变，不编造戏剧性失败。
+4. **完成如何判断**：最终文本、工具执行成功、实际产物正确是不同证据。

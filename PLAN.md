@@ -1,43 +1,41 @@
-# 课堂精简重构规格
+# 单目录课堂精简规格
 
-目标：六个独立的 `agent.py` 教学快照，面向泛工科本科生，在 45 分钟内讲清文本续写、上下文、角色、工具、循环与隔离执行。
+目标：同一目录中的 `agent_v0.py`—`agent_v5.py` 六份独立教学程序，在 45 分钟内讲清文本续写、上下文、角色、工具、循环与 Bash 执行。
 
-## 版本与入口
+## 六阶段
 
-本轮使用 `teaching-cleanup/<阶段ID>` 独立 Tag 命名空间，下表只写阶段 ID；共享的 v0—v5 标签保持原样。v5 是原受限基线的精简参考，正在另行扩展的 Bash 能力暂不合入，待最终 v5 确定后再做精简。
-
-| 阶段 ID | 运行文件 | 核心验收 |
+| 阶段 | 文件 | 机制 |
 |---|---|---|
-| v0-token | `agent.py` | 独立 Completion、12 个 token、真实 logprobs、逐位置候选概率 |
-| v1-memory | `agent.py` | 文本 history；第二次请求可见第一轮信息；没有 token 演示 |
-| v2-chat | `agent.py` | system/user/assistant messages；没有旧版入口 |
-| v3-tools | `agent.py`、`tools.py` | calculator；一次请求与回填后回答，不持续循环 |
-| v4-agent-loop | `agent.py`、`tools.py` | calculator；根据实际反馈持续决策；每任务最多 100 轮 |
-| v5-execution | `agent.py`、`tools.py` | 仅 Bash；隔离目录、跨轮文件、安全导出；每任务最多 100 轮 |
+| v0 | `agent_v0.py` | 独立 Completion、12 个 token、真实 logprobs 与候选概率 |
+| v1 | `agent_v1.py` | 文本 history；多轮保存并重新提交 |
+| v2 | `agent_v2.py` | system/user/assistant messages |
+| v3 | `agent_v3.py` | 内联 calculator；一次工具请求与回填后回答 |
+| v4 | `agent_v4.py` | 内联 calculator；`while True` 反馈循环 |
+| v5 | `agent_v5.py` | 内联 Bash 工具；当前目录执行，stdout/stderr 回填 |
 
-运行方式统一为 `git switch --detach teaching-cleanup/<阶段ID>` 后 `python agent.py`。只保留自由交互，提示符 `$ `，空白输入跳过，Ctrl+D 结束，Ctrl+C 平稳退出；重新启动即开始全新会话。配置放文件顶部，温度默认 0；密钥与模型覆盖值来自环境。保留 API 超时和重试。
+直接 `python agent_vN.py`，无需切换版本。每份程序自带所需代码，不导入公共本地运行模块。v3/v4 用 `eval(expression)` 计算；v5 只保留 Bash，不带早期版本入口。另行开发的新 v5 本轮不纳入。
 
-SDK 调用、history、messages、工具分发与循环直接呈现在 `agent.py`。课堂运行不依赖统一参数、兼容分派、录制包装或教师辅助脚本。v5 的沙箱、目录准备与导出合入 `tools.py`；固定 CSV 正确性验收移到教师验证侧。保留 Bash 扩展边界：`BASH` Schema、`execute`、`run_bash`，以及目录准备与导出的 `seed`、`export_outputs`；无需额外框架。
+统一 `$ ` 提示，空白输入跳过；Ctrl+D、Ctrl+C 结束。配置在顶部，密钥和模型覆盖来自环境，温度默认 0。SDK 非流式，Chat 请求关闭 thinking，API 45 秒超时、1 次重试。程序末尾仅处理 EOF 和中断；不设置命令行参数、密钥预查或通用错误包装。
 
-## Git 与教学材料
+## 工具和循环
 
-- 在 `codex/teaching-cleanup` 分支生成六个精简快照，逐阶段验证后创建 `teaching-cleanup/<阶段ID>` 教学 Tag；不更新共享 v0—v5 标签，最终分支内容为本轮 v5 参考版。
-- 重构前六 Tag 原样保留为 `archive/2026-10-15/pre-cleanup/<tag>`，旧录制原样移到 `recordings/archive/2026-10-15/pre-cleanup/`；保留第一代归档。
-- 网页从真实 Tag 读取源码与相邻差异；复制命令直接切 Tag 并运行 `agent.py`；真实轨迹明确标识 REPLAY。
-- README、45 分钟讲稿和 16 页大纲统一为手工输入示例。温度对照通过修改文件顶部常量进行，切换版本前恢复默认值。
-- 保留 `preflight.py`、`build_viewer.py`、`chat_template_demo.py` 和测试；真实 API 验证与录制由外部 `verify_live.py` 完成，教师辅助脚本默认解析 `teaching-cleanup/` 命名空间。
+- v3 每个用户轮做一轮工具请求，执行并回填后回答；不进入持续工具循环。
+- v4/v5 使用 `while True`，没有轮数上限；工具结果进入历史，模型可以继续请求工具或给出最终回答。
+- v5 的 `run_bash(command)` 直接调用 `subprocess.run(["bash", "-c", command], ...)`，当前目录执行、60 秒超时，stdout 与 stderr 作为结果返回。
+- 文件直接保存在当前目录；不配置沙箱、白名单、临时工作区、产物导出、自动虚拟环境或网络代理。原隔离说明归档至 `docs/archive/sandbox-isolated.md`。
+
+## 网页、录制与课程
+
+- metadata 只使用阶段 `id` v0—v5 及 `file` agent_vN.py；网页读取实际文件与 SHA-256，显示相邻文件差异，复制直接运行命令，保留投影字号与安全转义。
+- 教师 `verify_live.py`、`preflight.py` 在项目根目录工作。录制为 `live-program-recording`，保存实际 stdout 转录及 source_file/source_sha256，不假称包含完整 SDK events 或未知的返回模型。
+- 网页明确标记 REPLAY，不执行历史命令。既有历史 Tag 与旧录制保留追溯，不参与教学运行，也不更改另一工作区的标签。
+- 讲稿保留 45 分钟、大纲保留 16 页；v1 通过重启做无历史/有历史对照，v3 先运行 v2 的纯文本回答再运行 v3 的工具请求。温度比较修改 v0 顶部常量。
 
 ## 验证要求
 
-- 六 Tag 独立导出运行，只依赖各自约定的一至两个本地运行文件；检查无跨版本功能或辅助运行模块残留。
-- 检查提示符、空白、EOF、中断和普通字符串输入；v0 输入独立，v1/v2 多轮上下文，v3 单次工具边界，v4 每任务轮数重新计数。
-- 保留算术参数校验、截断与工具失败处理回归；v5 检查跨轮文件、安全导出、禁网、数据只读、白名单、超时及资源限制，无后端即拒绝执行。
-- 逐阶段真实 API 冒烟；v5 手工任务读取 CSV、生成并运行代码、保存结果与报告。外部独立核对 **10 行、平均 24.5°C、最大 29°C、最小 20°C**。
-- 录制重新绑定到新命名空间中的真实快照，记录模型、时间、输入、响应与源码 SHA；结果以重新验证为准，不修改旧记录冒充当前验证。网页重建后检查六阶段源码、差异、命令与录制来源。
-- 通过、失败、跳过分别记入 `VALIDATION.md`；嵌套沙箱阻止隔离测试时，不把跳过记作通过。
+- 六份程序分别验证独立输入、历史、结构化消息、单轮工具和反馈循环；检查空白、EOF 与中断。
+- v5 在测试目录执行真实 Bash，检查 stdout/stderr、命令超时、文件跨轮保留；报告任务由外部核对 **10 行、平均 24.5°C、最大 29°C、最小 20°C**。
+- 网页测试使用普通临时目录，覆盖六阶段、相邻差异、复制、转义、源码与录制对应，不创建临时 Git 仓库。
+- 真实 API 与自动测试结果分别记录于 `VALIDATION.md`；测试 fixture 不作为真实输出。外部新闻、API 与历史模板来源继续保留原有事实边界。
 
-## 事实与安全边界
-
-密钥不打印、不入库、不进入执行环境。候选概率只由 API logprob 取 exp，不重新归一化 top-k；低温不保证正确或逐字复现。Chat Template 只展示明确标注的公开 DeepSeek-V3 历史版本。命令过滤仅是额外检查，实际执行必须有 OS 沙箱或容器隔离。现有新闻日期与来源保留，不引入新的时效性主张。
-
-课程时间：00—04 最终演示；04—11 token；11—17 history；17—22 roles；22—30 tools；30—39 loop 与隔离；39—43 案例；43—45 总结。
+课程时间：00—04 完整演示；04—11 token；11—17 history；17—22 roles；22—30 tools；30—39 loop 与 Bash；39—43 案例；43—45 总结。
