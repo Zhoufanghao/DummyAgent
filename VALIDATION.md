@@ -35,3 +35,12 @@
 - 确认下一次API请求包含上一轮tool result；未用框架隐藏循环。
 - 单元测试验证观察回填、最大迭代耗尽不报告完成、length截断不充当最终回答。
 - 已核实2026-09-10官方更新：deepseek-flash当前对应DeepSeek-V4.1-Flash，所有保留录制均采用该ID。
+
+## v5-execution
+
+- 8轮真实DeepSeek-V4.1-Flash调用（API ID deepseek-flash），实际Seatbelt执行。
+- 自然发生的反馈修正：第一轮使用&&组合命令被拒；下一轮自行改为单命令，之后读CSV、生成analysis.py、执行、分别读取result.json/report.md、汇报。未人为注入报错。
+- 独立验收：count=10、mean=24.5、max=29.0、min=20.0；CSV未变；报告/生成脚本/JSON已导出并保留examples。
+- 46项测试全部通过，包含24项沙箱验证/集成测试，11项产物与失败反馈测试，以及工具、循环、快照、回放和网页测试。
+- macOS真实测试覆盖禁网、宿主哨兵读写拒绝、Data卷别名、软硬链接、数据只读、环境密钥不继承、禁子进程、超时、16KiB输出/256KiB文件上限、无后端拒绝执行。Docker分支未在本机验证。
+- 修复并回归验证超大整数统计值不会让验收抛OverflowError中止，可作为错误反馈继续循环。

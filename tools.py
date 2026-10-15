@@ -9,6 +9,10 @@ CALCULATOR = {"type": "function", "function": {
     "parameters": {"type": "object", "properties": {
         "expression": {"type": "string", "description": "算术表达式，如(12+3)*4"}},
         "required": ["expression"], "additionalProperties": False}}}
+BASH = {"type": "function", "function": {
+    "name": "bash", "description": "在禁网隔离实验目录执行一个前台命令。可用python3、ls、cat、pwd、head、wc、printf、echo。支持python3 - <<'PY'\n代码\nPY；不支持管道、shell重定向、cd、后台或子进程。数据只读；仅可写analysis.py、result.json、report.md。8秒超时。",
+    "parameters": {"type": "object", "properties": {"command": {"type": "string"}},
+                   "required": ["command"], "additionalProperties": False}}}
 TOOLS = [CALCULATOR]
 
 
@@ -42,12 +46,18 @@ def calculator(expression):
     return compute(ast.parse(expression, mode="eval").body)
 
 
-def execute(tool_call):
+def execute(tool_call, workspace=None):
     """验证模型生成的名称与参数；错误也作为观察结果返回。"""
     try:
         if len(tool_call.function.arguments) > 8192:
             raise ValueError("参数过长")
         arguments = json.loads(tool_call.function.arguments)
+        if tool_call.function.name == "bash":
+            if workspace is None or not isinstance(arguments, dict) or set(arguments) != {"command"}:
+                raise ValueError("bash需要隔离目录和唯一command字符串参数")
+            from sandbox import run_bash
+            result = run_bash(arguments["command"], workspace, timeout=8)
+            return {"ok": result.get("exit_code") == 0 and not result.get("error"), **result}
         if tool_call.function.name != "calculator":
             raise ValueError("未知工具")
         if not isinstance(arguments, dict) or set(arguments) != {"expression"}:

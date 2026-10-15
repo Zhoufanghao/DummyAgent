@@ -33,6 +33,7 @@ def run(main, stage):
     parser.add_argument("--steps", type=int, default=12, help="token位置数，1—64")
     parser.add_argument("--max-iterations", type=int, default=8, help="LLM轮次上限，1—12")
     parser.add_argument("--prompt", default="牛顿第二定律告诉我们，")
+    parser.add_argument("--calculator", action="store_true", help="使用v4的计算工具循环")
     parser.add_argument("--chat", action="store_true", help="重看角色对话，可结合--demo")
     parser.add_argument("--tokens", action="store_true", help="重看最初的token演示")
     parser.add_argument("--task", help="替换工具/Agent任务")
