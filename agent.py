@@ -1,44 +1,32 @@
-"""v0：原始 Completion，逐位置查看真实 logprobs。"""
-import math
+"""v1：应用保存文本 history，每轮重新提交完整对话。"""
 import os
 import sys
 
 MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-flash")
 TEMPERATURE = 0
-TOKEN_STEPS = 12
-
-
-def complete_tokens(client, prompt):
-    response = client.completions.create(
-        model=MODEL, prompt=prompt, max_tokens=TOKEN_STEPS,
-        temperature=TEMPERATURE, logprobs=5)
-    choice = response.choices[0]
-    probabilities = choice.logprobs
-    if not probabilities or not probabilities.top_logprobs:
-        raise RuntimeError("API没有返回logprobs；请勿用编造概率代替")
-    print("Pr[token | context]；以下逐位置展开一次真实响应（不是每Token发一次请求）。")
-    print("只展示top-k候选；exp(logprob)不重新归一化；-9999是极低概率哨兵。")
-    context = prompt
-    for token, logprob, candidates in zip(
-            probabilities.tokens, probabilities.token_logprobs, probabilities.top_logprobs):
-        print(f"\n上下文：{context!r}")
-        for candidate, lp in sorted(candidates.items(), key=lambda pair: pair[1], reverse=True):
-            probability = format(math.exp(lp), '.4%') if lp > -9999 else '低于API显示范围'
-            print(f"  候选 {candidate!r:14} logprob={lp:9.4f} p={probability}")
-        print(f"→ 生成 {token!r} p={math.exp(logprob):.4%}")
-        context += token
-    print(f"\n完整续写：{prompt}{choice.text}\n停止原因：{choice.finish_reason}")
 
 
 def main(client):
+    history = "请续写下面的中文对话，只回答最后一个问题；不知道的信息请说不知道。\n"
     while True:
         try:
-            prompt = input("$ ")
+            question = input("$ ")
         except (EOFError, KeyboardInterrupt):
             print()
             return
-        if prompt.strip():
-            complete_tokens(client, prompt)
+        if not question.strip():
+            continue
+        history += f"用户：{question}\n助手："
+        print(f"提交给API的文本：{history!r}")
+        response = client.completions.create(
+            model=MODEL, prompt=history, max_tokens=120,
+            temperature=TEMPERATURE, stop=["\n用户："])
+        choice = response.choices[0]
+        if choice.finish_reason != "stop":
+            raise RuntimeError("回复被截断或异常停止")
+        answer = choice.text.strip()
+        print(f"助手：{answer}")
+        history += answer + "\n"
 
 
 def cli():
