@@ -31,7 +31,9 @@ class RecordingTests(unittest.TestCase):
     def test_real_subprocess_records_exact_combined_output_and_eof_without_git(self):
         root = self.fixture_repo()
         source = ("# explicit local unit fixture; no model/API\n"
-                  "import sys\nMODEL = 'unit-fixture-model'\n"
+                  "import sys\nfrom types import SimpleNamespace as NS\n"
+                  "client = NS(completions=NS(create=lambda **kwargs: None))\n"
+                  "client.completions.create(model='unit-fixture-model')\n"
                   "questions = list(sys.stdin)\n"
                   "print('fixture stdout', flush=True)\n"
                   "print('fixture stderr', file=sys.stderr, flush=True)\n"
@@ -48,14 +50,24 @@ class RecordingTests(unittest.TestCase):
         self.assertNotIn("source_commit", recording)
         self.assertNotIn("runtime_sha256", recording)
 
-    def test_unknown_requested_model_stays_unknown_and_environment_is_configuration_only(self):
-        self.assertIsNone(verify_live.requested_model("print('unit fixture')\n"))
-        source = "import os\nMODEL = os.environ.get('DEEPSEEK_MODEL', 'deepseek-flash')\n"
+    def test_inline_requested_model_is_consistent_and_ignores_environment_override(self):
+        source = ("client.completions.create(model='deepseek-flash')\n"
+                  "client.chat.completions.create(model='deepseek-flash')\n")
         with patch.dict(os.environ, {"DEEPSEEK_MODEL": "unit-configured-model"}):
-            self.assertEqual(verify_live.requested_model(source), "unit-configured-model")
-        with patch.dict(os.environ):
-            os.environ.pop("DEEPSEEK_MODEL", None)
             self.assertEqual(verify_live.requested_model(source), "deepseek-flash")
+
+    def test_unknown_dynamic_and_conflicting_requested_models_stay_unknown(self):
+        sources = ("print('unit fixture')\n",
+                   "client.completions.create(model=selected_model)\n",
+                   "client.completions.create(**request)\n",
+                   "client.completions.create(model=123)\n",
+                   "client.completions.create(model='deepseek-flash')\n"
+                   "client.chat.completions.create(model='other-fixture-model')\n",
+                   "client.completions.create(model='deepseek-flash')\n"
+                   "client.chat.completions.create(model=selected_model)\n")
+        for source in sources:
+            with self.subTest(source=source):
+                self.assertIsNone(verify_live.requested_model(source))
 
     def test_preflight_uses_file_hash_without_importing_or_requiring_function_names(self):
         root = self.fixture_repo()
@@ -103,7 +115,9 @@ class RecordingTests(unittest.TestCase):
                     "Path('result.json').write_text(json.dumps(stats))\n"
                     "Path('report.md').write_text('样本数：10\\n平均温度：24.5 °C\\n最高温度：29 °C\\n最低温度：20 °C\\n')\n")
         source = ("# explicit local unit fixture; no API\nimport subprocess, sys\nfrom pathlib import Path\n"
-                  "MODEL = 'unit-fixture-model'\nlist(sys.stdin)\n"
+                  "from types import SimpleNamespace as NS\n"
+                  "client = NS(completions=NS(create=lambda **kwargs: None))\n"
+                  "client.completions.create(model='unit-fixture-model')\nlist(sys.stdin)\n"
                   f"Path('analysis.py').write_text({analysis!r})\n"
                   "subprocess.run([sys.executable, 'analysis.py'], check=True)\n"
                   "print('unit fixture artifacts complete')\n")

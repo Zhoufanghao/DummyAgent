@@ -4,18 +4,15 @@ import os
 from openai import OpenAI
 from prompt_toolkit import prompt
 
-MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-flash")
-TEMPERATURE = 0
+THINKING = True
 CALCULATOR_TOOL = {"type": "function", "function": {
     "name": "calculator", "description": "计算算术表达式。",
     "parameters": {"type": "object", "properties": {
         "expression": {"type": "string", "description": "算术表达式，如(12+3)*4；乘方使用**"}},
         "required": ["expression"]}}}
 
-
 def calculator(expression):
     return eval(expression)
-
 
 def main():
     client = OpenAI(api_key=os.environ["DEEPSEEK_API_KEY"],
@@ -27,10 +24,12 @@ def main():
             continue
         messages.append({"role": "user", "content": task})
         message = client.chat.completions.create(
-            model=MODEL, messages=messages, tools=[CALCULATOR_TOOL],
-            temperature=TEMPERATURE, max_tokens=500,
-            extra_body={"thinking": {"type": "disabled"}}).choices[0].message
-        messages.append(message.model_dump(include={"role", "content", "tool_calls"}, exclude_none=True))
+            model="deepseek-flash", messages=messages, tools=[CALCULATOR_TOOL],
+            max_tokens=8192,
+            extra_body={"thinking": {"type": "enabled" if THINKING else "disabled"}}).choices[0].message
+        messages.append(message)
+        if THINKING:
+            print("思考：", message.reasoning_content)
         if message.tool_calls:
             for tool_call in message.tool_calls:
                 print("LLM → Tool Call：", tool_call.function.name, tool_call.function.arguments)
@@ -38,11 +37,12 @@ def main():
                 print("Python → Tool Result：", result)
                 messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": str(result)})
             message = client.chat.completions.create(
-                model=MODEL, messages=messages, temperature=TEMPERATURE, max_tokens=500,
-                extra_body={"thinking": {"type": "disabled"}}).choices[0].message
-            messages.append({"role": "assistant", "content": message.content})
+                model="deepseek-flash", messages=messages, max_tokens=8192,
+                extra_body={"thinking": {"type": "enabled" if THINKING else "disabled"}}).choices[0].message
+            messages.append(message)
+            if THINKING:
+                print("思考：", message.reasoning_content)
         print("助手：", message.content)
-
 
 if __name__ == "__main__":
     try:

@@ -2,6 +2,8 @@
 
 在两个终端分别运行 `python agent_v3.py` 和 `python agent_v4.py`，输入相同题面。先按项目 requirements 安装 OpenAI SDK 与 `prompt_toolkit`；输入提示为 `$ `。在支持 bracketed paste 的终端中，整段粘贴含换行题面，粘贴后按一次 Enter 提交，换行会保留在同一条输入中。空白输入跳过，Ctrl+D 或 Ctrl+C 结束。题目要求逐步调用，让后续计算使用刚返回的结果。两版 calculator 完全相同，直接使用 `eval(expression)`，幂运算写 Python 的 `**`；区别在于 v3 回填一次后直接回答，v4 继续给模型调用工具的机会。
 
+两版文件顶部均有 `THINKING = True`，启用并显示DeepSeek API返回的思考文本，完整响应返回后才显示；改为False则关闭。比较时两版使用相同开关值。模型在调用中直接写为 `deepseek-flash`，不传temperature。
+
 ## 主案例：取末六位，再计算
 
 ```text
@@ -30,10 +32,10 @@
 
 ## 本次实测与课堂判读
 
-2026-10-15 使用 `deepseek-flash`、温度 0 真实运行两份程序：v3 两题都只产生第一步的 `Python → Tool Result`，后续调用出现在助手正文中，没有执行，也没有给出最终数值；v4 分别实际执行两次、三次 calculator 调用，最终结果均与独立整数计算一致。
+2026-10-15 使用 `deepseek-flash`、`THINKING = True` 真实重新运行两份程序，未设置temperature。v3 两题都只产生第一步的 `Python → Tool Result`，后续调用出现在助手正文中，没有执行，也没有给出最终数值；v4 分别实际执行两次、三次 calculator 调用，最终结果均与独立整数计算一致。v3显示4段、v4显示7段API思考文本，工具反馈后和下一用户轮都正常继续。
 
 真实输入、时间、原始终端输出及源码 SHA 保存在 `recordings/v3.json`、`recordings/v4.json`；可用 `python verify_live.py --stage v3 --stage v4 --output-dir /tmp/loop-rehearsal` 重新彩排。网页展示这两份录制，不运行历史输出中的命令。
 
-课堂上先检查最终数值，再圈出每条真实的 `Python → Tool Result`。助手正文里的函数名、DSML 标记或“接下来调用”都不能充当执行证据。本次 v3 的结果应称为“任务未完成”，没有错误数值可供判断。
+课堂上先检查最终数值，再圈出每条真实的 `Python → Tool Result`。思考文本、助手正文里的函数名、DSML 标记或“接下来调用”都不能充当执行证据。本次 v3 的结果应称为“任务未完成”，没有错误数值可供判断。
 
 这些是多步操作练习，逐步约束直接写在题面中。当前 calculator 可以接受完整 Python 表达式，模型也可能合并运算或自行算对；出现这种情况，应如实记为完成。固定数学题不能保证 v3 每次失败，v4 的循环也不保证每次成功；现场以实际输出为准。

@@ -51,22 +51,18 @@ def file_sha256(path):
 
 
 def requested_model(source):
-    """只读取可确定的请求配置；不把配置当成API实际返回模型。"""
-    for node in ast.parse(source).body:
-        if not isinstance(node, ast.Assign) or not any(
-                isinstance(target, ast.Name) and target.id == "MODEL" for target in node.targets):
+    """读取SDK请求中一致的model字符串；动态或混合配置保持未知。"""
+    models = set()
+    for node in ast.walk(ast.parse(source)):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "create" and isinstance(node.func.value, ast.Attribute)
+                and node.func.value.attr == "completions"):
             continue
-        value = node.value
-        if isinstance(value, ast.Constant) and isinstance(value.value, str):
-            return value.value
-        if (isinstance(value, ast.Call) and isinstance(value.func, ast.Attribute)
-                and value.func.attr == "get" and isinstance(value.func.value, ast.Attribute)
-                and value.func.value.attr == "environ" and isinstance(value.func.value.value, ast.Name)
-                and value.func.value.value.id == "os" and value.args
-                and isinstance(value.args[0], ast.Constant) and value.args[0].value == "DEEPSEEK_MODEL"):
-            default = value.args[1].value if len(value.args) > 1 and isinstance(value.args[1], ast.Constant) else None
-            return os.environ.get("DEEPSEEK_MODEL", default)
-    return None
+        value = next((keyword.value for keyword in node.keywords if keyword.arg == "model"), None)
+        if not isinstance(value, ast.Constant) or not isinstance(value.value, str):
+            return None
+        models.add(value.value)
+    return next(iter(models)) if len(models) == 1 else None
 
 
 def verify_artifacts(destination, source=ROOT / "data/temperature.csv"):

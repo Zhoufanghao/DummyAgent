@@ -2,7 +2,7 @@
 
 45 分钟，面向泛工科本科生。六份独立 Python 文件依次展示文本续写、history、messages、工具调用、反馈循环与 Bash 执行；所有阶段同时放在项目根目录，依赖标准库、OpenAI Python SDK 和用于交互输入的 `prompt_toolkit`。
 
-默认模型为 **DeepSeek-V4.1-Flash**，API ID 为 `deepseek-flash`。2026-10-15 核查的[官方更新](https://api-docs.deepseek.com/updates/)记录了这一别名映射；开课前须重新核对。公开 V3 仅用于历史 Chat Template 对照。
+所有 SDK 调用直接使用 `model="deepseek-flash"`，对应的模型别名为 **DeepSeek-V4.1-Flash**。2026-10-15 核查的[官方更新](https://api-docs.deepseek.com/updates/)记录了这一别名映射；开课前须重新核对。公开 V3 仅用于历史 Chat Template 对照。
 
 ## 启动
 
@@ -14,7 +14,7 @@ source ~/.config/api-keys/llm.env
 python agent_v0.py
 ```
 
-密钥由 `DEEPSEEK_API_KEY` 提供；若环境文件没有 `export`，可用 `set -a; source ~/.config/api-keys/llm.env; set +a`。`DEEPSEEK_MODEL` 可覆盖默认模型。模型和温度等配置在每个文件顶部；程序不自动创建虚拟环境或设置代理。
+密钥由 `DEEPSEEK_API_KEY` 提供；若环境文件没有 `export`，可用 `set -a; source ~/.config/api-keys/llm.env; set +a`。模型名直接写在 SDK 调用中；程序不自动创建虚拟环境或设置代理。
 
 各阶段都是自由交互，使用 `prompt_toolkit.prompt("$ ")` 提示输入。在支持 bracketed paste 的终端中，多行粘贴会整体保留换行，粘贴后按一次 Enter 提交；空白输入跳过，Ctrl+D 结束，Ctrl+C 退出。程序不处理聊天内命令。要开始全新对话，结束后重新启动。
 
@@ -29,7 +29,9 @@ python agent_v0.py
 
 每份文件都包含自己所需的 SDK 调用、历史、工具定义和执行函数，无本地公共运行模块。v1 起不保留 token 演示；v5 仅有 Bash 工具。v3/v4 的 `calculator` 直接用 `eval(expression)` 求值；幂运算使用 Python 的 `**`。v4/v5 使用 `while True`，模型返回最终回答时结束当前任务，没有循环轮数上限。
 
-默认 `TEMPERATURE = 0`，v0 的 `TOKEN_STEPS = 12`。温度比较直接修改 `agent_v0.py` 顶部常量，比较 0 与 0.8 后恢复默认值。SDK 不流式返回，Chat 请求关闭 thinking；单次 API 超时 45 秒，最多重试 1 次。
+只有 v0 设置 `TEMPERATURE = 0`，并生成 `TOKEN_STEPS = 12` 个 token；比较温度时修改 `agent_v0.py` 顶部常量为 0.8，之后恢复 0。v1—v5 不传 temperature，使用 API 默认值。单次 API 超时 45 秒，最多重试 1 次。
+
+v2 关闭 thinking；v3—v5 在文件顶部用 `THINKING = True` 控制 thinking 模式和思考文本展示。开启时打印 DeepSeek API 返回的 `reasoning_content`，关闭时禁用 thinking 并停止打印该字段。SDK 使用非流式请求，思考文本在整次响应返回后一次展示，不是实时逐字流。这三版的 `max_tokens = 8192` 由思考文本与最终回答共用；返回的 message 直接加入 messages，完整保留 `reasoning_content` 供工具后续调用。实际工具执行仍以 Tool Result 为证据。
 
 ## v3 与 v4 的同题对照
 
@@ -41,7 +43,7 @@ python agent_v0.py
 每次只请求当前一步的计算，必须等工具返回后再进行下一步，不要把整条流程合成一个表达式。
 ```
 
-标准答案为 A = `121932631112635269`、B = `635269`、最终整数 = `256373415452969682`。本次真实彩排中，v3 只执行第一步，随后输出未执行的调用文本，没有给出最终数值；v4 根据第一步结果继续调用，得到正确终值。更多题面、标准答案及判读方法见 [循环对照案例](docs/loop_examples.md)。
+标准答案为 A = `121932631112635269`、B = `635269`、最终整数 = `256373415452969682`。本次 `THINKING=True` 的真实彩排中，v3 只执行第一步，随后输出未执行的 DSML 调用文本，没有给出最终数值；v4 实际执行两次 calculator 并得到正确终值。其他运行中 v3 也可能自行算出终值；课堂按新录制中的实际 Tool Result、步骤和最终数值判读，不预设 v3 失败。更多题面、标准答案及判读方法见 [循环对照案例](docs/loop_examples.md)。
 
 ## Bash 文件任务
 

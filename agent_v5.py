@@ -5,8 +5,7 @@ import subprocess
 from openai import OpenAI
 from prompt_toolkit import prompt
 
-MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-flash")
-TEMPERATURE = 0
+THINKING = True
 BASH_TIMEOUT = 60
 SYSTEM_PROMPT = "使用 bash 完成当前目录中的任务，中文回复。"
 
@@ -14,7 +13,6 @@ BASH_TOOL = {"type": "function", "function": {
     "name": "bash", "description": "执行 Bash 命令，返回退出码和输出。",
     "parameters": {"type": "object", "properties": {
         "command": {"type": "string"}}, "required": ["command"]}}}
-
 
 def run_bash(command):
     print(f"\n$ {command}", flush=True)
@@ -29,7 +27,6 @@ def run_bash(command):
     print(output, flush=True)
     return output
 
-
 def main():
     client = OpenAI(api_key=os.environ["DEEPSEEK_API_KEY"],
                     base_url="https://api.deepseek.com/beta", timeout=45, max_retries=1)
@@ -41,10 +38,12 @@ def main():
         messages.append({"role": "user", "content": task})
         while True:
             message = client.chat.completions.create(
-                model=MODEL, messages=messages, tools=[BASH_TOOL],
-                temperature=TEMPERATURE, max_tokens=1600,
-                extra_body={"thinking": {"type": "disabled"}}).choices[0].message
-            messages.append(message.model_dump(include={"role", "content", "tool_calls"}, exclude_none=True))
+                model="deepseek-flash", messages=messages, tools=[BASH_TOOL],
+                max_tokens=8192,
+                extra_body={"thinking": {"type": "enabled" if THINKING else "disabled"}}).choices[0].message
+            messages.append(message)
+            if THINKING:
+                print("思考：", message.reasoning_content)
             if not message.tool_calls:
                 print("助手：", message.content)
                 break
@@ -53,7 +52,6 @@ def main():
                 output = run_bash(arguments["command"])
                 messages.append({"role": "tool", "tool_call_id": tool_call.id,
                                  "content": output})
-
 
 if __name__ == "__main__":
     try:

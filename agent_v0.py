@@ -4,10 +4,8 @@ import os
 from openai import OpenAI
 from prompt_toolkit import prompt
 
-MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-flash")
 TEMPERATURE = 0
 TOKEN_STEPS = 12
-
 
 def main():
     client = OpenAI(api_key=os.environ["DEEPSEEK_API_KEY"],
@@ -17,7 +15,7 @@ def main():
         if not prefix.strip():
             continue
         choice = client.completions.create(
-            model=MODEL, prompt=prefix, max_tokens=TOKEN_STEPS,
+            model="deepseek-flash", prompt=prefix, max_tokens=TOKEN_STEPS,
             temperature=TEMPERATURE, logprobs=5).choices[0]
         context = prefix
         print("Pr[token | context]；top-k 候选概率不重新归一化。")
@@ -30,7 +28,6 @@ def main():
             print(f"→ 生成 {token!r} p={math.exp(logprob):.4%}")
             context += token
         print(f"\n完整续写：{prefix}{choice.text}")
-
 
 if __name__ == "__main__":
     try:

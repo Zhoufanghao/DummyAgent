@@ -3,9 +3,6 @@ import os
 from openai import OpenAI
 from prompt_toolkit import prompt
 
-MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-flash")
-TEMPERATURE = 0
-
 
 def main():
     client = OpenAI(api_key=os.environ["DEEPSEEK_API_KEY"],
@@ -18,12 +15,11 @@ def main():
         messages.append({"role": "user", "content": question})
         print(f"Messages → {messages}")
         response = client.chat.completions.create(
-            model=MODEL, messages=messages, temperature=TEMPERATURE, max_tokens=500,
+            model="deepseek-flash", messages=messages, max_tokens=500,
             extra_body={"thinking": {"type": "disabled"}})
         answer = response.choices[0].message.content
         print(f"助手：{answer}")
         messages.append({"role": "assistant", "content": answer})
-
 
 if __name__ == "__main__":
     try:

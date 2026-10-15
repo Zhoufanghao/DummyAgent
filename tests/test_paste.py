@@ -27,13 +27,19 @@ print("__OPENAI_FIXTURE_READY__", flush=True)
 class Message:
     content = "unit fixture answer"
     tool_calls = None
+    reasoning_content = "unit fixture reasoning"
 
     def model_dump(self, **kwargs):
-        return {"role": "assistant", "content": self.content}
+        message = {"role": "assistant", "content": self.content,
+                   "reasoning_content": self.reasoning_content}
+        if kwargs.get("include") is not None:
+            message = {name: value for name, value in message.items() if name in kwargs["include"]}
+        return message
 
 class Completions:
     def create(self, **params):
-        print("__SDK_REQUEST__" + json.dumps(params), flush=True)
+        print("__SDK_REQUEST__" + json.dumps(params,
+              default=lambda message: message.model_dump(exclude_none=True)), flush=True)
         probabilities = NS(tokens=["续"], token_logprobs=[-0.2], top_logprobs=[{"续": -0.2}])
         return NS(choices=[NS(text="unit fixture answer", logprobs=probabilities,
                               message=Message(), finish_reason="stop")])
@@ -146,6 +152,13 @@ class PasteTests(unittest.TestCase):
                 terminal.send("普通单行追问\r".encode("utf-8"))
                 terminal.answered(2)
                 self.assertEqual(self.user_input(stage, terminal.requests[1]), "普通单行追问")
+                if stage >= 3:
+                    assistant = terminal.requests[1]["messages"][-2]
+                    self.assertEqual(assistant["reasoning_content"], "unit fixture reasoning")
+                    self.assertIn("思考：", terminal.text)
+                    self.assertLess(terminal.text.index("思考："), terminal.text.index("助手："))
+                else:
+                    self.assertNotIn("思考：", terminal.text)
 
                 terminal.send(b"\x04")
                 terminal.wait_for(lambda: terminal.process.poll() is not None)
