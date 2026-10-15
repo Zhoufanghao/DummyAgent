@@ -128,7 +128,7 @@ class AcceptanceFeedback(unittest.TestCase):
             observed.append(json.loads(json.dumps(params["messages"])))
             return next(replies)
 
-        args = NS(model="unit-fixture", temperature=0, max_iterations=3)
+        args = NS(demo=True, model="unit-fixture", temperature=0, max_iterations=3)
         client = NS(chat=NS(completions=NS(create=object())))
         with patch.object(agent, "call", side_effect=fixture_response), \
                 patch.object(agent, "execute", return_value={"ok": False, "error": "fixture failure"}), \
@@ -141,6 +141,70 @@ class AcceptanceFeedback(unittest.TestCase):
         self.assertIn("fixture mismatch", observed[1][-1]["content"])
         self.assertEqual(observed[2][-1]["role"], "tool")
         self.assertIn("fixture failure", observed[2][-1]["content"])
+
+
+class InteractiveExports(unittest.TestCase):
+    """自由任务导出只检查安全边界，不套用固定温度报告的验收标准。"""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="agent-free-task-")
+        self.addCleanup(self.temp.cleanup)
+        self.workspace = Path(self.temp.name).resolve()
+        self.teacher_temp = tempfile.TemporaryDirectory(prefix="teacher-free-export-")
+        self.addCleanup(self.teacher_temp.cleanup)
+        self.export_root = Path(self.teacher_temp.name).resolve()
+
+    def export(self):
+        with patch.object(lab.Path, "cwd", return_value=self.export_root), \
+                contextlib.redirect_stdout(io.StringIO()):
+            return lab.export_outputs(self.workspace)
+
+    def test_each_output_can_be_exported_without_the_other_two(self):
+        lab.seed(self.workspace)
+        contents = {"analysis.py": "print('independent fixture')\n",
+                    "result.json": '{"free_task": true}\n',
+                    "report.md": "# 自由任务\n这份报告没有固定温度统计字段。\n"}
+        for name, text in contents.items():
+            with self.subTest(name=name):
+                source = self.workspace / name
+                source.write_text(text, encoding="utf-8")
+                destination = self.export()
+                self.assertTrue(destination.is_relative_to(self.export_root / "lab-runs"))
+                self.assertEqual({path.name for path in destination.iterdir()}, {name})
+                exported = destination / name
+                self.assertEqual(exported.read_text(encoding="utf-8"), text)
+                self.assertFalse(exported.is_symlink())
+                self.assertNotEqual(exported.stat().st_ino, source.stat().st_ino)
+                source.unlink()
+
+    def test_empty_workspace_has_no_export(self):
+        self.assertIsNone(self.export())
+        self.assertFalse((self.export_root / "lab-runs").exists())
+
+    def test_input_data_and_empty_whitelisted_files_are_not_exported(self):
+        lab.seed(self.workspace)
+        (self.workspace / "analysis.py").write_text("")
+        self.assertIsNone(self.export())
+        self.assertFalse((self.export_root / "lab-runs").exists())
+
+    def test_unexpected_file_is_rejected(self):
+        (self.workspace / "notes.txt").write_text("not a permitted artifact")
+        with self.assertRaises(ValueError):
+            self.export()
+        self.assertFalse((self.export_root / "lab-runs").exists())
+
+    def test_symlink_is_rejected_before_export(self):
+        (self.workspace / "report.md").symlink_to(lab.SOURCE)
+        with self.assertRaises(ValueError):
+            self.export()
+        self.assertFalse((self.export_root / "lab-runs").exists())
+
+    def test_hardlink_is_rejected_before_export(self):
+        lab.seed(self.workspace)
+        (self.workspace / "result.json").hardlink_to(self.workspace / "data/temperature.csv")
+        with self.assertRaises(ValueError):
+            self.export()
+        self.assertFalse((self.export_root / "lab-runs").exists())
 
 
 if __name__ == "__main__":

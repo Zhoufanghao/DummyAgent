@@ -15,6 +15,16 @@
 
 每版先运行本地检查和真实API演示，再 `git commit`、创建对应 annotated tag。失败先修复，不提前占用Tag。公共支持代码处理录制和错误，关键SDK调用、history、messages、tool dispatch、循环始终在教学代码中可读。
 
+## 交互与参数修订
+
+- 课堂概率统一写作 `Pr[token | context]`，表示给定上下文时下一个 token 的条件概率。
+- 六个版本默认自由交互；`--demo` 明确选择固定示例。v0 每次接受独立续写前缀；v1 文本 history、v2 结构化 messages 均支持多轮；v3 保留跨用户轮历史但每轮只进行一次工具调用与回填；v4 每个任务进入循环；v5 在同一个隔离目录支持多轮任务。
+- `:quit` 退出交互；有历史的版本用 `:reset` 清空模型上下文。v5 重置对话不删除实验产物。
+- v0 的 `--prompt`、其他版本的 `--task` 可执行一次自定输入。它们无需 `--demo`，结束后直接退出。
+- v4/v5 每个任务默认最多 100 轮，`--max-iterations` 范围 1—1000；达到上限保持未确认完成状态。
+- v5 的固定 CSV 数值验收只用于 `--demo`；自由任务仍保留目录、文件、命令、超时和 OS 隔离限制。
+- 修订时先保留旧 Tag 到 `archive/2026-10-15/<原Tag>`，旧录制移入 `recordings/archive/2026-10-15/`；逐阶段验证、提交、替换六个课程 Tag，再从真实 Tag 重建网页。新代码不得与旧录制冒充同一次验证。
+
 ## 并行交付
 
 1. 官方文档核实：OpenAI SDK、DeepSeek Completion/logprobs/tool calling；模型ID以实际可用探测为准。

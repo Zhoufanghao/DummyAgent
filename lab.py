@@ -54,3 +54,19 @@ def publish(workspace):
     print(f"[独立验收通过] {expected}")
     print(f"[已导出报告] {destination / 'report.md'}\n{report}")
     return destination
+
+
+def export_outputs(workspace):
+    """自由任务只做文件安全检查，不强制CSV报告格式或统计目标。"""
+    validate_workspace(workspace)
+    names = [name for name in ("analysis.py", "result.json", "report.md")
+             if (workspace / name).is_file() and (workspace / name).stat().st_size]
+    if not names:
+        return None
+    root = Path.cwd() / "lab-runs"
+    root.mkdir(exist_ok=True)
+    destination = Path(tempfile.mkdtemp(prefix="run-", dir=root))
+    for name in names:
+        shutil.copyfile(workspace / name, destination / name)
+    print(f"[已安全导出产物] {destination}；文件：{', '.join(names)}")
+    return destination

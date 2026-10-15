@@ -4,7 +4,11 @@
 
 ## 使用方式
 
-宿主程序用 `tempfile.mkdtemp(prefix="agent-lab-")` 建立独立实验目录，只复制 `data/temperature.csv`。工具调用为 `run_bash(command, workspace, timeout=8)`；导出报告前再调用 `validate_workspace(workspace)`，然后读取、复制产物。
+宿主程序用 `tempfile.mkdtemp(prefix="agent-lab-")` 建立独立实验目录，只复制 `data/temperature.csv`。工具调用为 `run_bash(command, workspace, timeout=8)`。`v5-execution` 默认自由交互，同一会话持续使用这个目录；`:reset` 清空模型上下文，保留实验文件，`:quit` 结束会话。`--task` 执行一个自定任务后退出，`--demo` 才使用固定温度报告任务。
+
+自由交互和 `--task` 不强制生成 CSV 报告；会话结束时对已有产物进行文件安全检查，安全导出后清理临时目录。没有生成文件的普通问答也可正常结束。只有 `--demo` 要求 `validate_workspace(workspace)` 核对固定数据的统计值、结果文件和报告，再导出产物。检查文件是否安全与检查用户任务是否完成是不同问题；自由任务仍须结合工具反馈和实际文件判断结果。
+
+每个任务默认最多 100 轮模型调用，`--max-iterations` 可设为 1—1000；达到上限即停止，不能据此宣称任务完成。自由交互不会放宽下面的命令、文件、超时或 OS 隔离限制。
 
 支持单个前台命令：`python3`、`ls`、`cat`、`pwd`、`head`、`wc`、`printf`、`echo`。推荐：
 

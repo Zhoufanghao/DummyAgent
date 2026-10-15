@@ -22,20 +22,32 @@ source ~/.config/api-keys/llm.env
 
 无需学生掌握Git；`run_stage.py` 从真实Tag临时导出并运行，结束清理临时源码。
 
-| Tag | 新机制 | 实时演示 |
-|---|---|---|
-| v0-token | Completion + 真实logprobs | `python run_stage.py v0-token --demo --temperature 0.8` |
-| v1-memory | 应用维护文本history | `python run_stage.py v1-memory --demo` |
-| v2-chat | system/user/assistant | `python run_stage.py v2-chat --demo` |
-| v3-tools | 一轮真实calculator调用 | `python run_stage.py v3-tools --demo` |
-| v4-agent-loop | 依赖前次结果的反复决策 | `python run_stage.py v4-agent-loop --demo` |
-| v5-execution | Bash + 真正OS隔离 | `python run_stage.py v5-execution --demo` |
+所有版本默认进入自由交互；只有 `--demo` 才使用固定课堂输入。交互中输入 `:quit` 退出；维护对话历史的版本可输入 `:reset` 清空历史。
 
-`python run_stage.py v2-chat` 是交互聊天，输入 `:quit` 结束。最终版 `python agent.py --calculator --demo` 可重看计算循环；`--chat` 重看对话；`--tokens --temperature 0.8` 重看token。
+| Tag | 新机制与交互方式 | 启动交互 |
+|---|---|---|
+| v0-token | 任意文本前缀续写 + 真实logprobs；每次独立，不保存历史 | `python run_stage.py v0-token --temperature 0.8` |
+| v1-memory | 应用维护文本history，多轮自由对话 | `python run_stage.py v1-memory` |
+| v2-chat | system/user/assistant 结构化多轮对话 | `python run_stage.py v2-chat` |
+| v3-tools | 自由提问；一次工具请求、执行、回填后回答；跨用户轮保留上下文 | `python run_stage.py v3-tools` |
+| v4-agent-loop | 每个自由任务进入反馈循环，跨用户轮保留上下文 | `python run_stage.py v4-agent-loop` |
+| v5-execution | 在同一个隔离实验目录持续执行自由任务 | `python run_stage.py v5-execution` |
+
+各行命令加 `--demo` 即运行固定示例；v1 的 demo 保留“不带历史 / 带历史”的对照。v3 没有 Agent Loop：工具结果回填后只再回答一次；需要继续请求工具的任务应使用 v4。
+
+也可直接执行一条自定输入，不进入交互。`--demo` 与 `--prompt` / `--task` 互斥：
+
+```bash
+python run_stage.py v0-token --prompt "热力学第一定律告诉我们，" --temperature 0.8
+python run_stage.py v3-tools --task "请计算 (123.4 * 56.7) / 8.9"
+python run_stage.py v5-execution --task "查看 data/temperature.csv 的前五行，告诉我列名"
+```
+
+最终版 `python agent.py` 默认进入隔离执行交互；`--calculator` 切换到计算工具循环，`--chat` 切换到角色对话，`--tokens --temperature 0.8` 切换到独立续写交互。这些入口都可结合 `--demo`。
 
 ## 断网也能授课
 
-六份 `recordings/<tag>.json` 和温度对照 `recordings/v0-token-temperature0.json` 均来自已验证的真实API调用，包含请求快照、响应、耗时、模型、源码SHA与终端转录。
+`recordings/<tag>.json` 保存对应版本的真实 API 演示，包含请求快照、响应、耗时、模型、源码SHA与终端转录。更新代码后须重新录制并校验对应关系；旧版录制归档到 `recordings/archive/2026-10-15/`，旧版 Tag 保留在 `archive/2026-10-15/<原Tag>`，供追溯使用。温度对照为 `recordings/v0-token-temperature0.json`。
 
 ```bash
 python run_stage.py v5-execution --replay recordings/v5-execution.json
@@ -50,13 +62,15 @@ python run_stage.py v0-token --demo --temperature 0.8 --record recordings/rehear
 python run_stage.py v5-execution --demo --record recordings/rehearsal-agent.json
 ```
 
-API单次超时45秒，最多重试1次；工具超时8秒；默认8轮，`--max-iterations`最高12。截断、超限、验收失败均不标记任务成功。模型文字仍可能变化；固定CSV的正确结果不变：**10行、平均24.5°C、最大29°C、最小20°C**。
+API单次超时45秒，最多重试1次；工具超时8秒；v4/v5 的每个任务默认最多 **100 轮**，`--max-iterations` 可设为 1—1000。达到上限会停止，不等于任务完成。截断、超限、验收失败均不标记任务成功。模型文字仍可能变化；固定CSV的正确结果不变：**10行、平均24.5°C、最大29°C、最小20°C**。
 
 ## 执行隔离
 
 `v5-execution` 优先使用本地已有Docker镜像，否则macOS使用Seatbelt；没有可用后端即拒绝执行。Docker需提前启动并执行 `docker pull python:3.12-slim`；程序不会自动联网拉镜像。
 
-本机已实测macOS Seatbelt：禁网、数据只读、临时目录隔离、仅3个允许写的文件、禁子进程、输出/文件大小上限、超时、环境变量清理。执行后由可信代码独立核对结果并导出到当前目录 `lab-runs/run-*/`，临时实验目录随即清理。
+本机已实测macOS Seatbelt：禁网、数据只读、临时目录隔离、仅3个允许写的文件、禁子进程、输出/文件大小上限、超时、环境变量清理。交互会话中保持同一个实验目录，便于继续查看或修改先前产物；结束后导出到当前目录 `lab-runs/run-*/`，再清理临时目录。`:reset` 清空模型上下文，实验文件保留。
+
+只有 `--demo` 强制执行固定 CSV 报告任务，并由可信代码独立核对统计结果与报告。自由交互和 `--task` 按用户任务执行，不要求每次生成温度报告；产物仍须通过文件安全检查，任务是否完成应结合工具结果和实际文件判断。
 
 模型可写的文件仅 `analysis.py`、`result.json`、`report.md`；可用命令见工具Schema。不支持管道、shell重定向、cd和后台任务；字面Python heredoc由辅助层转换为等价 `python3 -c`，避免Bash创建子进程。目录限制和命令过滤之外还有OS隔离，详见 [安全边界与实测](docs/sandbox.md)。Docker分支尚未在本机验证。Codex嵌套沙箱可能阻止Seatbelt启动，此时在本机普通终端运行；程序仍拒绝未隔离执行。
 

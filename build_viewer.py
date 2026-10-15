@@ -225,6 +225,7 @@ def render_stage(repo, stage, previous, index, source_files):
     if stage["tag"] == "v2-chat":
         extra += ('<p class="page-note">公开模板辅助演示：在仓库根目录运行 '
                   '<code>python chat_template_demo.py</code>。该历史V3模板不代表当前Flash托管API内部格式。</p>')
+    command = f"python run_stage.py {stage['tag']}"
     hidden = " hidden" if index else ""
     return f'''<article class="stage" id="{escape(stage['tag'])}" data-stage="{escape(stage['tag'])}"{hidden}>
       <div class="eyebrow">{escape(stage['minutes'])} <span>同一个 agent.py · 第 {index + 1} / 6 个版本</span></div>
@@ -235,6 +236,12 @@ def render_stage(repo, stage, previous, index, source_files):
         <section><h2>为什么需要</h2><p>{escape(stage['why'])}</p></section>
         <section><h2>可以演示</h2><p>{escape(stage['can_do'])}</p></section>
       </div>
+      <section class="run-command" aria-label="运行当前阶段">
+        <div class="command-row"><code class="command-text">{escape(command)}</code>
+          <button class="copy-command" type="button">复制交互命令</button></div>
+        <p>默认进入自由交互；输入 <code>:quit</code> 退出，<code>:reset</code> 清空当前会话。
+          加 <code>--demo</code> 才使用固定课堂示例。网页只展示代码与回放；请在终端运行命令。</p>
+      </section>
       <div class="version-bar"><span><code>{escape(stage['tag'])}</code> · commit <code title="{escape(stage['sha'])}">{escape(stage['sha'][:12])}</code></span>
         <span class="stats"><b class="plus">+{added}</b> / <b class="minus">−{removed}</b> 行 <small>全部教学源码</small></span></div>
       <div class="code-toolbar"><label>源码文件 <select class="file-selector" aria-label="选择源码文件">{options}</select></label>
@@ -270,6 +277,11 @@ h1 { font-size:clamp(26px,2.5vw,38px); line-height:1.3; margin:9px 0 10px; lette
 .learning-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-bottom:22px; }
 .learning-grid section { background:#fff; border:1px solid var(--line); border-radius:8px; padding:15px 18px; } h2 { margin:0; font-size:15px; }
 .learning-grid h2 { font-size:12px; color:var(--accent); margin-bottom:6px; } .learning-grid p { margin:0; font-size:14px; }
+.run-command { margin-bottom:20px; padding:12px 16px; background:#edf7f4; border:1px solid #c6e1d8; border-radius:8px; }
+.command-row { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.command-text { overflow-wrap:anywhere; font-size:14px; }
+.copy-command { padding:5px 10px; border:1px solid #82b6a7; border-radius:5px; background:#fff; color:#155f4f; cursor:pointer; font-size:12px; }
+.run-command p { font-size:12px; color:var(--muted); margin:8px 0 0; }
 .version-bar,.code-toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
 .version-bar { font-size:12px; margin-bottom:12px; } code { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
 .stats { display:flex; align-items:baseline; gap:7px; } .plus { color:#147843; } .minus { color:#ad3c3c; } .stats small { color:var(--muted); }
@@ -312,6 +324,22 @@ JS = r'''
     if (updateHash) history.replaceState(null, '', '#' + tag);
   }
   buttons.forEach(button => button.addEventListener('click', () => selectStage(button.dataset.target, true)));
+  document.querySelectorAll('.copy-command').forEach(button => {
+    button.addEventListener('click', async () => {
+      const command = button.closest('.command-row').querySelector('.command-text').textContent;
+      try {
+        await navigator.clipboard.writeText(command);
+        button.textContent = '已复制';
+      } catch (error) {
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(button.closest('.command-row').querySelector('.command-text'));
+        selection.removeAllRanges();
+        selection.addRange(range);
+        button.textContent = '命令已选中，请手动复制';
+      }
+    });
+  });
   document.querySelectorAll('.file-selector').forEach(select => {
     select.addEventListener('change', () => {
       select.closest('.stage').querySelectorAll('.file-panel').forEach(panel => {

@@ -24,7 +24,7 @@ def response(reason, message):
 
 class LoopTests(unittest.TestCase):
     def args(self, limit=3):
-        return NS(tokens=False, chat=False, calculator=True, task="unit-test-only",
+        return NS(demo=True, prompt=None, tokens=False, chat=False, calculator=True, task=None,
                   model="unit-test-fixture", temperature=0, max_iterations=limit)
 
     def client(self):

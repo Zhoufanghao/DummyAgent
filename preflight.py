@@ -14,10 +14,42 @@ def require(condition, message):
         raise ValueError(message)
 
 
+def check_cli(tag):
+    """执行Tag自己的参数解析与退出输入；不导入SDK，也不连接API。"""
+    common_source = subprocess.run(["git", "show", f"{tag}:common.py"], cwd=ROOT,
+                                   capture_output=True, check=True, text=True).stdout
+    ast.parse(common_source, filename=f"{tag}/common.py")
+    harness = '''import json, sys
+namespace = {"__file__": "preflight-tag/common.py"}
+exec(compile(COMMON_SOURCE, namespace["__file__"], "exec"), namespace)
+args = namespace["parse_args"](sys.argv[1:])
+namespace["read_input"] = lambda *unused: None
+questions = list(namespace["inputs"](args, ["fixed-demo"], "PREFLIGHT> "))
+print("CLI_CHECK " + json.dumps({"demo": args.demo,
+    "max_iterations": args.max_iterations, "questions": questions}))
+'''.replace("COMMON_SOURCE", repr(common_source))
+    for flags, expected_demo in (([], False), (["--demo"], True)):
+        result = subprocess.run([sys.executable, "-S", "-c", harness, *flags], cwd=ROOT,
+                                capture_output=True, text=True, timeout=10)
+        require(result.returncode == 0, f"{tag}: CLI参数验证失败：{result.stderr}")
+        marker = next((line[10:] for line in result.stdout.splitlines()
+                       if line.startswith("CLI_CHECK ")), None)
+        require(marker is not None, f"{tag}: 未运行CLI检查callback")
+        require(json.loads(marker) == {"demo": expected_demo, "max_iterations": 100,
+                                       "questions": ["fixed-demo"] if expected_demo else []},
+                f"{tag}: 应默认交互、--demo才固定示例、默认100轮")
+    help_result = subprocess.run([sys.executable, "-S", str(ROOT / "run_stage.py"), tag,
+                                  "--help"], cwd=ROOT, capture_output=True, text=True, timeout=15)
+    require(help_result.returncode == 0 and "--demo" in help_result.stdout
+            and "--max-iterations" in help_result.stdout, f"{tag}: 帮助命令失败")
+
+
 def check_stage(tag):
     source = subprocess.run(["git", "show", f"{tag}:agent.py"], cwd=ROOT,
                             capture_output=True, check=True).stdout
     ast.parse(source, filename=f"{tag}/agent.py")
+    require(b"Pr[token | context]" in source, f"{tag}: token概率公式未统一")
+    check_cli(tag)
     recording_path = ROOT / "recordings" / f"{tag}.json"
     recording = json.loads(recording_path.read_text(encoding="utf-8"))
     require(recording["kind"] == "live-api-recording" and recording["stage"] == tag,
@@ -44,7 +76,7 @@ def main():
         all_events = {}
         for tag in TAGS:
             all_events[tag] = check_stage(tag)
-            print(f"PASS {tag} · Git源码SHA + 真实API录制 + 独立无SDK回放")
+            print(f"PASS {tag} · 默认交互/--demo/100轮 + Git源码SHA + 真实API录制 + 无SDK回放")
         probs = all_events["v0-token"][0]["response"]["choices"][0]["logprobs"]
         require(len(probs["tokens"]) == len(probs["top_logprobs"]) > 0, "token位置数据不完整")
         require(any(0 < math.exp(lp) < 1 for top in probs["top_logprobs"] for lp in top.values()),

@@ -1,7 +1,7 @@
 {
   "kind": "live-api-recording",
   "stage": "v3-tools",
-  "recorded_at": "2026-10-15T06:02:43.884540+00:00",
+  "recorded_at": "2026-10-15T10:01:32.775462+00:00",
   "model_requested": "deepseek-flash",
   "events": [
     {
@@ -11,7 +11,7 @@
         "messages": [
           {
             "role": "system",
-            "content": "你是中文计算助手，使用工具时以工具结果为准。"
+            "content": "你是中文计算助手，需要计算时使用calculator，以实际工具结果为准。"
           },
           {
             "role": "user",
@@ -27,14 +27,14 @@
         }
       },
       "response": {
-        "id": "fd1d393b-b8c0-431a-ac36-d168e0e3f7fa",
+        "id": "f9dff4f4-3b1e-4aae-92ca-caea2ee224db",
         "choices": [
           {
             "finish_reason": "stop",
             "index": 0,
             "logprobs": null,
             "message": {
-              "content": "(12345 × 6789) ÷ (17 + 29) = 83809845 ÷ 46 = 1821953.152173913",
+              "content": "calculator(12345 * 6789 / (17 + 29))",
               "refusal": null,
               "role": "assistant",
               "annotations": null,
@@ -44,16 +44,16 @@
             }
           }
         ],
-        "created": 1792044162,
+        "created": 1792058491,
         "model": "deepseek-flash",
         "object": "chat.completion",
         "moderation": null,
         "service_tier": null,
         "system_fingerprint": "aeb56401ca74e127821c4f9126dcb669",
         "usage": {
-          "completion_tokens": 32,
-          "prompt_tokens": 38,
-          "total_tokens": 70,
+          "completion_tokens": 16,
+          "prompt_tokens": 42,
+          "total_tokens": 58,
           "completion_tokens_details": null,
           "prompt_tokens_details": {
             "audio_tokens": null,
@@ -61,10 +61,10 @@
             "cached_tokens": 0
           },
           "prompt_cache_hit_tokens": 0,
-          "prompt_cache_miss_tokens": 38
+          "prompt_cache_miss_tokens": 42
         }
       },
-      "elapsed_seconds": 0.842
+      "elapsed_seconds": 0.667
     },
     {
       "endpoint": "Completions.create",
@@ -73,7 +73,7 @@
         "messages": [
           {
             "role": "system",
-            "content": "你是中文计算助手，使用工具时以工具结果为准。"
+            "content": "你是中文计算助手，需要计算时使用calculator，以实际工具结果为准。"
           },
           {
             "role": "user",
@@ -104,7 +104,7 @@
         ],
         "tool_choice": "required",
         "temperature": 0,
-        "max_tokens": 300,
+        "max_tokens": 500,
         "extra_body": {
           "thinking": {
             "type": "disabled"
@@ -112,7 +112,7 @@
         }
       },
       "response": {
-        "id": "5417cd26-7e54-4596-931b-a33a3cacdbc3",
+        "id": "6b8abc9c-f31d-4d9d-bdab-844a32449678",
         "choices": [
           {
             "finish_reason": "tool_calls",
@@ -127,7 +127,7 @@
               "function_call": null,
               "tool_calls": [
                 {
-                  "id": "call_00_3uE2MifMwkRQlfifpzau1077",
+                  "id": "call_00_6B4KybB8fOZ2zej0H0Kr7951",
                   "function": {
                     "arguments": "{\"expression\": \"(12345 * 6789) / (17 + 29)\"}",
                     "name": "calculator"
@@ -139,7 +139,7 @@
             }
           }
         ],
-        "created": 1792044162,
+        "created": 1792058491,
         "model": "deepseek-flash",
         "object": "chat.completion",
         "moderation": null,
@@ -147,8 +147,8 @@
         "system_fingerprint": "aeb56401ca74e127821c4f9126dcb669",
         "usage": {
           "completion_tokens": 44,
-          "prompt_tokens": 329,
-          "total_tokens": 373,
+          "prompt_tokens": 333,
+          "total_tokens": 377,
           "completion_tokens_details": null,
           "prompt_tokens_details": {
             "audio_tokens": null,
@@ -156,10 +156,10 @@
             "cached_tokens": 0
           },
           "prompt_cache_hit_tokens": 0,
-          "prompt_cache_miss_tokens": 329
+          "prompt_cache_miss_tokens": 333
         }
       },
-      "elapsed_seconds": 0.613
+      "elapsed_seconds": 0.761
     },
     {
       "endpoint": "Completions.create",
@@ -168,7 +168,7 @@
         "messages": [
           {
             "role": "system",
-            "content": "你是中文计算助手，使用工具时以工具结果为准。"
+            "content": "你是中文计算助手，需要计算时使用calculator，以实际工具结果为准。"
           },
           {
             "role": "user",
@@ -179,7 +179,7 @@
             "role": "assistant",
             "tool_calls": [
               {
-                "id": "call_00_3uE2MifMwkRQlfifpzau1077",
+                "id": "call_00_6B4KybB8fOZ2zej0H0Kr7951",
                 "function": {
                   "arguments": "{\"expression\": \"(12345 * 6789) / (17 + 29)\"}",
                   "name": "calculator"
@@ -191,12 +191,12 @@
           },
           {
             "role": "tool",
-            "tool_call_id": "call_00_3uE2MifMwkRQlfifpzau1077",
+            "tool_call_id": "call_00_6B4KybB8fOZ2zej0H0Kr7951",
             "content": "{\"ok\": true, \"value\": 1821960.9782608696}"
           }
         ],
         "temperature": 0,
-        "max_tokens": 220,
+        "max_tokens": 500,
         "extra_body": {
           "thinking": {
             "type": "disabled"
@@ -204,14 +204,14 @@
         }
       },
       "response": {
-        "id": "632fd247-4e40-4833-a352-6e7403a960bb",
+        "id": "8f5f7d3c-9a0c-4f3c-a3a2-dca8d03e97e6",
         "choices": [
           {
             "finish_reason": "stop",
             "index": 0,
             "logprobs": null,
             "message": {
-              "content": "约 **1,821,960.98**",
+              "content": "(12345 × 6789) ÷ (17 + 29) ≈ 1821960.98",
               "refusal": null,
               "role": "assistant",
               "annotations": null,
@@ -221,16 +221,16 @@
             }
           }
         ],
-        "created": 1792044163,
+        "created": 1792058492,
         "model": "deepseek-flash",
         "object": "chat.completion",
         "moderation": null,
         "service_tier": null,
         "system_fingerprint": "aeb56401ca74e127821c4f9126dcb669",
         "usage": {
-          "completion_tokens": 10,
-          "prompt_tokens": 116,
-          "total_tokens": 126,
+          "completion_tokens": 22,
+          "prompt_tokens": 120,
+          "total_tokens": 142,
           "completion_tokens_details": null,
           "prompt_tokens_details": {
             "audio_tokens": null,
@@ -238,12 +238,18 @@
             "cached_tokens": 0
           },
           "prompt_cache_hit_tokens": 0,
-          "prompt_cache_miss_tokens": 116
+          "prompt_cache_miss_tokens": 120
         }
       },
-      "elapsed_seconds": 0.686
+      "elapsed_seconds": 0.461
     }
   ],
-  "source_sha256": "12d217f6db7f0c2a8d6ddc93dfb51f9238ccdf53a5a38d88db5a4506228dc062",
-  "transcript": "[实时 LIVE · v3-tools] model=deepseek-flash · https://api.deepseek.com/beta\n用户：请计算(12345 * 6789) / (17 + 29)，简短回答。\n[不使用工具] (12345 × 6789) ÷ (17 + 29) = 83809845 ÷ 46 = 1821953.152173913\nTool Schema → [{\"type\": \"function\", \"function\": {\"name\": \"calculator\", \"description\": \"计算有限数值的简单四则运算，可用括号和小整数幂。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"expression\": {\"type\": \"string\", \"description\": \"算术表达式，如(12+3)*4\"}}, \"required\": [\"expression\"], \"additionalProperties\": false}}}]\nLLM → Tool Call： calculator {\"expression\": \"(12345 * 6789) / (17 + 29)\"}\nPython Function → Tool Result： {'ok': True, 'value': 1821960.9782608696}\nLLM → 最终回答： 约 **1,821,960.98**\n"
+  "mode": "demo",
+  "settings": {
+    "max_iterations": 100,
+    "temperature": 0,
+    "steps": 12
+  },
+  "source_sha256": "5e3d90636fa62d100141c9c31b855e6f0b71c54f1f7be5fcf1490e70fce3c8e8",
+  "transcript": "[实时 LIVE · v3-tools] model=deepseek-flash · https://api.deepseek.com/beta\nTool Schema → [{\"type\": \"function\", \"function\": {\"name\": \"calculator\", \"description\": \"计算有限数值的简单四则运算，可用括号和小整数幂。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"expression\": {\"type\": \"string\", \"description\": \"算术表达式，如(12+3)*4\"}}, \"required\": [\"expression\"], \"additionalProperties\": false}}}]\n用户：请计算(12345 * 6789) / (17 + 29)，简短回答。\n[不使用工具] calculator(12345 * 6789 / (17 + 29))\nLLM → Tool Call： calculator {\"expression\": \"(12345 * 6789) / (17 + 29)\"}\nPython Function → Tool Result： {'ok': True, 'value': 1821960.9782608696}\nLLM → 最终回答： (12345 × 6789) ÷ (17 + 29) ≈ 1821960.98\n"
 }
