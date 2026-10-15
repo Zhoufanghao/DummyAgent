@@ -1,12 +1,15 @@
-"""离线备课检查：真实Tags、可运行回放、API录制、固定报告，不调用网络。"""
+#!/usr/bin/env python3
+"""教师离线预检：逐阶段检查独立源码、结构和真实录制来源，不调用API。"""
+
+import argparse
 import ast
-import hashlib
 import json
-import math
 from pathlib import Path
 import subprocess
 import sys
-from run_stage import TAGS, ROOT
+import tempfile
+
+from verify_live import ROOT, SCENARIOS, STAGES, materialize, runtime_hashes, validate_events
 
 
 def require(condition, message):
@@ -14,96 +17,101 @@ def require(condition, message):
         raise ValueError(message)
 
 
-def check_cli(tag):
-    """执行Tag自己的参数解析与退出输入；不导入SDK，也不连接API。"""
-    common_source = subprocess.run(["git", "show", f"{tag}:common.py"], cwd=ROOT,
-                                   capture_output=True, check=True, text=True).stdout
-    ast.parse(common_source, filename=f"{tag}/common.py")
-    harness = '''import json, sys
-namespace = {"__file__": "preflight-tag/common.py"}
-exec(compile(COMMON_SOURCE, namespace["__file__"], "exec"), namespace)
-args = namespace["parse_args"](sys.argv[1:])
-namespace["read_input"] = lambda *unused: None
-questions = list(namespace["inputs"](args, ["fixed-demo"], "PREFLIGHT> "))
-print("CLI_CHECK " + json.dumps({"demo": args.demo,
-    "max_iterations": args.max_iterations, "questions": questions}))
-'''.replace("COMMON_SOURCE", repr(common_source))
-    for flags, expected_demo in (([], False), (["--demo"], True)):
-        result = subprocess.run([sys.executable, "-S", "-c", harness, *flags], cwd=ROOT,
-                                capture_output=True, text=True, timeout=10)
-        require(result.returncode == 0, f"{tag}: CLI参数验证失败：{result.stderr}")
-        marker = next((line[10:] for line in result.stdout.splitlines()
-                       if line.startswith("CLI_CHECK ")), None)
-        require(marker is not None, f"{tag}: 未运行CLI检查callback")
-        require(json.loads(marker) == {"demo": expected_demo, "max_iterations": 100,
-                                       "questions": ["fixed-demo"] if expected_demo else []},
-                f"{tag}: 应默认交互、--demo才固定示例、默认100轮")
-    help_result = subprocess.run([sys.executable, "-S", str(ROOT / "run_stage.py"), tag,
-                                  "--help"], cwd=ROOT, capture_output=True, text=True, timeout=15)
-    require(help_result.returncode == 0 and "--demo" in help_result.stdout
-            and "--max-iterations" in help_result.stdout, f"{tag}: 帮助命令失败")
+def check_structure(directory, stage):
+    """检查每阶段自身职责，避免把旧入口或公共框架带回课堂代码。"""
+    source = (directory / "agent.py").read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=f"{stage}/agent.py")
+    functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
+    require("main" in functions and "cli" in functions, f"{stage}: 需要main(client)及cli()")
+    require([arg.arg for arg in functions["main"].args.args] == ["client"],
+            f"{stage}: main只接受client")
+    require(not functions["cli"].args.args, f"{stage}: cli不接受参数")
+    require(all(not (directory / name).exists() for name in
+                ("common.py", "run_stage.py", "sandbox.py", "lab.py")),
+            f"{stage}: 仍含已移除的运行辅助模块")
+    has_tools = (directory / "tools.py").is_file()
+    require(has_tools == (stage in STAGES[3:]), f"{stage}: 工具文件不符合阶段职责")
+    sources = [source]
+    if has_tools:
+        tools = (directory / "tools.py").read_text(encoding="utf-8")
+        ast.parse(tools, filename=f"{stage}/tools.py")
+        sources.append(tools)
+    joined = "\n".join(sources)
+    require(all(token not in joined for token in
+                (":quit", ":reset", "argparse", "from common", "import common", "from sandbox", "from lab")),
+            f"{stage}: 课堂运行源码仍有旧交互或辅助依赖")
+    require(any(isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id == "input" and len(node.args) == 1
+                and isinstance(node.args[0], ast.Constant) and node.args[0].value == "$ "
+                for node in ast.walk(tree)), f"{stage}: 输入提示应为'$ '")
+    require("EOFError" in source, f"{stage}: 未处理Ctrl+D结束")
+    constants = {target.id: node.value for node in tree.body if isinstance(node, ast.Assign)
+                 for target in node.targets if isinstance(target, ast.Name)}
+    require("MODEL" in constants and "TEMPERATURE" in constants,
+            f"{stage}: 缺少顶部模型/温度配置")
+    if stage == "v0-token":
+        require("Pr[token | context]" in source, "v0: 缺少真实token概率说明")
+        require(isinstance(constants.get("TOKEN_STEPS"), ast.Constant)
+                and constants["TOKEN_STEPS"].value == 12, "v0: TOKEN_STEPS应为12")
+    else:
+        require("complete_tokens" not in functions and "logprobs" not in source,
+                f"{stage}: 不应残留v0概率演示")
+    if stage in STAGES[4:]:
+        require(isinstance(constants.get("MAX_ITERATIONS"), ast.Constant)
+                and constants["MAX_ITERATIONS"].value == 100,
+                f"{stage}: MAX_ITERATIONS应为100")
+    if stage == "v5-execution":
+        require("calculator" not in joined and "def agent_loop" in source,
+                "v5: 只保留隔离bash工具与Agent循环")
+    # -S禁止SDK/site-packages。导入必须安全；只有cli()才建立SDK连接。
+    harness = "import agent; assert callable(agent.main) and callable(agent.cli)"
+    result = subprocess.run([sys.executable, "-S", "-c", harness], cwd=directory,
+                            capture_output=True, text=True, timeout=10)
+    require(result.returncode == 0, f"{stage}: 无SDK导入失败：{result.stderr}")
 
 
-def check_stage(tag):
-    source = subprocess.run(["git", "show", f"{tag}:agent.py"], cwd=ROOT,
-                            capture_output=True, check=True).stdout
-    ast.parse(source, filename=f"{tag}/agent.py")
-    require(b"Pr[token | context]" in source, f"{tag}: token概率公式未统一")
-    check_cli(tag)
-    recording_path = ROOT / "recordings" / f"{tag}.json"
-    recording = json.loads(recording_path.read_text(encoding="utf-8"))
-    require(recording["kind"] == "live-api-recording" and recording["stage"] == tag,
-            f"{tag}: 录制类型或阶段不符")
-    require(recording["source_sha256"] == hashlib.sha256(source).hexdigest(),
-            f"{tag}: agent.py与录制源码SHA不符")
-    require(recording["model_requested"] == "deepseek-flash", f"{tag}: 非默认Flash录制")
-    events = recording["events"]
-    require(bool(events), f"{tag}: 没有真实响应")
-    for event in events:
-        require(bool(event["response"].get("id")), f"{tag}: 缺少API响应ID")
-        require(event["response"]["model"] == "deepseek-flash", f"{tag}: API返回模型不符")
-    playback = subprocess.run([sys.executable, "-S", str(ROOT / "run_stage.py"), tag,
-                               "--replay", str(recording_path)], cwd=ROOT,
-                              capture_output=True, text=True, timeout=15)
-    require(playback.returncode == 0, playback.stderr)
-    require("回放 REPLAY" in playback.stdout and recording["transcript"] in playback.stdout,
-            f"{tag}: 回放标识或内容不符")
-    return events
+def check_recording(directory, stage, commit, path):
+    recording = json.loads(path.read_text(encoding="utf-8"))
+    require(recording.get("kind") == "live-api-recording" and recording.get("stage") == stage,
+            f"{stage}: 录制类型或阶段不符")
+    hashes = runtime_hashes(directory)
+    require(recording.get("source_sha256") == hashes["agent.py"], f"{stage}: agent.py与录制SHA不符")
+    require(recording.get("runtime_sha256") == hashes, f"{stage}: 运行文件与录制SHA不符")
+    require(recording.get("source_commit") == commit, f"{stage}: 录制不属于当前阶段提交")
+    require(recording.get("mode") == "interactive", f"{stage}: 不是自由交互录制")
+    require(recording.get("inputs") == list(SCENARIOS[stage]), f"{stage}: 彩排输入不符")
+    require(recording.get("recorded_at") and recording.get("transcript"), f"{stage}: 录制缺少时间或转录")
+    require(recording.get("model_requested"), f"{stage}: 录制缺少请求模型")
+    validate_events(stage, recording["events"], SCENARIOS[stage])
+    if stage == "v5-execution":
+        require(recording.get("validation", {}).get("statistics") ==
+                {"count": 10, "mean": 24.5, "max": 29, "min": 20},
+                "v5: 录制缺少固定报告独立验收")
+        require("[独立验收通过]" in recording["transcript"], "v5: 转录缺少验收结果")
+    return recording
 
 
-def main():
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repo", type=Path, default=ROOT)
+    parser.add_argument("--recordings", type=Path, help="默认检查仓库recordings目录")
+    parser.add_argument("--structure-only", action="store_true", help="新彩排前仅检查已提交源码结构")
+    args = parser.parse_args(argv)
+    repo = args.repo.resolve()
+    recordings = args.recordings or repo / "recordings"
     try:
-        all_events = {}
-        for tag in TAGS:
-            all_events[tag] = check_stage(tag)
-            print(f"PASS {tag} · 默认交互/--demo/100轮 + Git源码SHA + 真实API录制 + 无SDK回放")
-        probs = all_events["v0-token"][0]["response"]["choices"][0]["logprobs"]
-        require(len(probs["tokens"]) == len(probs["top_logprobs"]) > 0, "token位置数据不完整")
-        require(any(0 < math.exp(lp) < 1 for top in probs["top_logprobs"] for lp in top.values()),
-                "主token演示缺少非退化概率")
-        e = all_events["v1-memory"]
-        require("A102" not in e[1]["request"]["prompt"] and "A102" in e[3]["request"]["prompt"],
-                "history对照不成立")
-        e = all_events["v2-chat"]
-        require([m["role"] for m in e[1]["request"]["messages"]] ==
-                ["system", "user", "assistant", "user"], "structured messages不完整")
-        for tag in ("v3-tools", "v4-agent-loop", "v5-execution"):
-            calls = [e["response"]["choices"][0]["message"].get("tool_calls") for e in all_events[tag]]
-            require(any(calls), f"{tag}: 缺少真实tool call")
-            require(all_events[tag][-1]["response"]["choices"][0]["finish_reason"] == "stop",
-                    f"{tag}: 模型未正常结束")
-        e = all_events["v4-agent-loop"]
-        require(sum(bool(v["response"]["choices"][0]["message"].get("tool_calls")) for v in e) >= 2,
-                "v4缺少多轮工具决策")
-        require("[独立验收通过]" in json.loads((ROOT / "recordings/v5-execution.json").read_text())["transcript"],
-                "v5未通过独立验收")
-        result = json.loads((ROOT / "examples/final-result.json").read_text())
-        require(result == {"count": 10, "mean": 24.5, "max": 29, "min": 20}, "示例统计错误")
-        require((ROOT / "web/index.html").is_file(), "缺少静态网页，运行python build_viewer.py")
-        subprocess.run([sys.executable, str(ROOT / "chat_template_demo.py")], cwd=ROOT,
-                       check=True, capture_output=True)
-        print("PASS 核心机制、固定报告与公开模板SHA；全程未调用API或执行历史工具")
-    except (ValueError, OSError, KeyError, subprocess.SubprocessError) as error:
+        with tempfile.TemporaryDirectory(prefix="agent-preflight-") as folder:
+            for stage in STAGES:
+                directory = Path(folder) / stage
+                directory.mkdir()
+                commit = materialize(repo, stage, directory)
+                check_structure(directory, stage)
+                if not args.structure_only:
+                    check_recording(directory, stage, commit, recordings / f"{stage}.json")
+                evidence = "结构" if args.structure_only else "结构、真实API录制来源及运行文件SHA"
+                print(f"PASS {stage} · {evidence}")
+        print("PASS 离线预检；未调用API或执行历史工具")
+    except (ValueError, OSError, KeyError, SyntaxError, subprocess.SubprocessError) as error:
         print(f"FAIL {error}", file=sys.stderr)
         return 1
     return 0

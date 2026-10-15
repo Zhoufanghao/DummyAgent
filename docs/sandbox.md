@@ -1,14 +1,14 @@
 # 执行工具的安全边界
 
-`sandbox.py` 是辅助模块；课堂上仍直接展示 `agent.py` 的决策循环。这里把执行限制单独写清楚，避免把“禁止几个命令”误当作沙箱。
+v5 的 `tools.py` 集中放置 Bash 工具、参数校验、隔离后端、实验目录准备与产物导出；课堂上直接展示 `agent.py` 的决策循环。这里把执行限制单独写清楚，避免把“禁止几个命令”误当作沙箱。
 
 ## 使用方式
 
-宿主程序用 `tempfile.mkdtemp(prefix="agent-lab-")` 建立独立实验目录，只复制 `data/temperature.csv`。工具调用为 `run_bash(command, workspace, timeout=8)`。`v5-execution` 默认自由交互，同一会话持续使用这个目录；`:reset` 清空模型上下文，保留实验文件，`:quit` 结束会话。`--task` 执行一个自定任务后退出，`--demo` 才使用固定温度报告任务。
+宿主程序用临时目录建立独立实验工作区，只复制 `data/temperature.csv`。工具调用为 `run_bash(command, workspace, timeout=8)`。切换到 `v5-execution` 后运行 `python agent.py`，在 `$ ` 后输入任务。同一会话持续使用这个目录，下一轮可以读取或修改先前产物；Ctrl+D 或 Ctrl+C 结束会话。再次启动会得到新的实验目录和空白对话。
 
-自由交互和 `--task` 不强制生成 CSV 报告；会话结束时对已有产物进行文件安全检查，安全导出后清理临时目录。没有生成文件的普通问答也可正常结束。只有 `--demo` 要求 `validate_workspace(workspace)` 核对固定数据的统计值、结果文件和报告，再导出产物。检查文件是否安全与检查用户任务是否完成是不同问题；自由任务仍须结合工具反馈和实际文件判断结果。
+会话结束时对已有产物进行文件安全检查，安全导出到当前目录 `lab-runs/run-*/` 后清理临时目录。没有生成文件的普通问答也可正常结束。自由交互不强制生成 CSV 报告，不在运行时用固定答案验收任务；固定 CSV 的统计结果和报告由外部教师验证脚本与测试独立核对。检查文件是否安全与检查用户任务是否完成是不同问题，教师仍需结合工具反馈和实际文件判断。
 
-每个任务默认最多 100 轮模型调用，`--max-iterations` 可设为 1—1000；达到上限即停止，不能据此宣称任务完成。自由交互不会放宽下面的命令、文件、超时或 OS 隔离限制。
+每个任务最多调用模型 100 轮，由 `agent.py` 顶部 `MAX_ITERATIONS` 控制；达到上限即停止，不能据此宣称任务完成。下一条用户任务重新计数，对话历史和实验文件继续保留。命令、文件、超时与 OS 隔离限制不随任务改变。
 
 支持单个前台命令：`python3`、`ls`、`cat`、`pwd`、`head`、`wc`、`printf`、`echo`。推荐：
 
@@ -24,7 +24,7 @@ print(text)
 PY
 ```
 
-这是一种刻意受限的 Bash 接口。辅助模块把上述**字面 Python here-document**转成等价的 `python3 -c SOURCE`，再让 Bash 用 `exec` 替换自身，避免 Bash 为 here-document 创建子进程和临时文件。显示、记录的工具参数保留原始命令。每次调用只有一个前台程序；不支持管道、后台、重定向或多个串接命令。
+这是一种刻意受限的 Bash 接口。`tools.py` 把上述**字面 Python here-document**转成等价的 `python3 -c SOURCE`，再让 Bash 用 `exec` 替换自身，避免 Bash 为 here-document 创建子进程和临时文件。显示、记录的工具参数保留原始命令。每次调用只有一个前台程序；不支持管道、后台、重定向或多个串接命令。
 
 ## 真正由操作系统执行的限制
 
@@ -62,9 +62,13 @@ docker pull python:3.12-slim
 
 运行使用 `--network=none --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit=1 --memory=128m --cpus=1`，非 root 用户，输入目录只读挂载，仅三个预建输出文件单独以可写方式挂载。执行时使用 `--pull=never`，不会为了临时调用下载镜像。进程超时后，还会调用 `docker rm -f`，因为只终止 Docker CLI 不能保证容器停止。
 
-本次机器没有 Docker；此后端尚未在本机验证。换到 Docker 环境后，必须运行同一组集成测试后再用于课堂。不要把 Docker daemon 配置为远程主机，文件挂载应对应当前本地实验目录。
+重构前的本机记录没有验证 Docker 后端；新版本当前验证状态以 [VALIDATION.md](../VALIDATION.md) 为准。换到 Docker 环境后，须运行同一组集成测试再用于课堂。不要把 Docker daemon 配置为远程主机，文件挂载应对应当前本地实验目录。
 
-## 本次实测记录
+## 本轮验证与历史证据
+
+本轮移植后，在允许启动本机 macOS Seatbelt 的终端权限下运行隔离测试：**24 项通过、0 项跳过**。Docker 后端仍未实测。完整命令、执行环境与本轮其他验证见 [VALIDATION.md](../VALIDATION.md)。
+
+下面保留重构前的详细实测记录，作为限制设计的历史证据：
 
 - 2026-10-15，macOS Darwin 24.6.0，arm64；Python 3.13；实际后端 `macos-seatbelt`。
 - 在允许启动 Seatbelt 的终端权限下运行 `python3 -m unittest discover -s tests -p test_sandbox.py -v`：**24 项通过**。

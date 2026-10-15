@@ -1,8 +1,8 @@
 # 从文字接龙到 AI Agent：用一个 API 构建智能体
 
-45分钟，面向泛工科本科生。同一个 `agent.py` 依次增加 history、messages、tool calling、反馈循环与隔离执行；只用标准库和 OpenAI Python SDK。
+45 分钟，面向泛工科本科生。六个独立教学版本依次展示文本续写、history、messages、工具请求、反馈循环与隔离执行；仅使用标准库和 OpenAI Python SDK。
 
-默认实际调用 **DeepSeek-V4.1-Flash**，API ID 为 `deepseek-flash`。已于2026-10-15核对[官方映射](https://api-docs.deepseek.com/updates/)并完成真实调用；该别名未来可能更新。历史V3仅用于公开Chat Template对照，不承担实时调用。
+默认模型为 **DeepSeek-V4.1-Flash**，API ID 为 `deepseek-flash`。2026-10-15 核查的[官方更新](https://api-docs.deepseek.com/updates/)记录了这一别名映射；别名可能更新，开课前须重新核对。历史 V3 仅用于公开 Chat Template 对照。源码对应的真实调用证据见录制与 [VALIDATION.md](VALIDATION.md)。
 
 ## 启动
 
@@ -16,83 +16,81 @@ python -m pip install -r requirements-lock.txt
 source ~/.config/api-keys/llm.env
 ```
 
-密钥只从 `DEEPSEEK_API_KEY` 环境变量读取，不打印、不入库。若个人环境文件没有 `export`，可用 `set -a; source ~/.config/api-keys/llm.env; set +a`。更换模型才设置 `DEEPSEEK_MODEL`，不设置即使用 Flash。
+密钥只从 `DEEPSEEK_API_KEY` 环境变量读取，不打印、不入库。若个人环境文件没有 `export`，可用 `set -a; source ~/.config/api-keys/llm.env; set +a`。`DEEPSEEK_MODEL` 可覆盖默认模型。温度、token 数和循环上限等本阶段可调项放在各版 `agent.py` 顶部。
 
-## 六个真实版本
+## 六个独立版本
 
-无需学生掌握Git；`run_stage.py` 从真实Tag临时导出并运行，结束清理临时源码。
+先结束当前程序，再切换 Tag 并直接启动。例如：
 
-所有版本默认进入自由交互；只有 `--demo` 才使用固定课堂输入。交互中输入 `:quit` 退出；维护对话历史的版本可输入 `:reset` 清空历史。
+```bash
+git switch --detach v0-token
+python agent.py
+```
 
-| Tag | 新机制与交互方式 | 启动交互 |
+程序用 `$ ` 等待输入，空白行跳过；Ctrl+D 正常结束，Ctrl+C 平稳退出。每版只有自由交互，不解析命令行参数或聊天内命令。要开始全新对话，结束后重新启动。
+
+| Tag | 课堂运行文件 | 该版机制 |
 |---|---|---|
-| v0-token | 任意文本前缀续写 + 真实logprobs；每次独立，不保存历史 | `python run_stage.py v0-token --temperature 0.8` |
-| v1-memory | 应用维护文本history，多轮自由对话 | `python run_stage.py v1-memory` |
-| v2-chat | system/user/assistant 结构化多轮对话 | `python run_stage.py v2-chat` |
-| v3-tools | 自由提问；一次工具请求、执行、回填后回答；跨用户轮保留上下文 | `python run_stage.py v3-tools` |
-| v4-agent-loop | 每个自由任务进入反馈循环，跨用户轮保留上下文 | `python run_stage.py v4-agent-loop` |
-| v5-execution | 在同一个隔离实验目录持续执行自由任务 | `python run_stage.py v5-execution` |
+| v0-token | `agent.py` | 独立前缀续写、真实 logprobs 与候选概率；不保存历史 |
+| v1-memory | `agent.py` | 应用保存并重新提交文本 history |
+| v2-chat | `agent.py` | system/user/assistant messages 多轮对话 |
+| v3-tools | `agent.py`、`tools.py` | calculator；一轮工具请求、执行、回填后回答 |
+| v4-agent-loop | `agent.py`、`tools.py` | calculator；工具结果推动下一轮决策 |
+| v5-execution | `agent.py`、`tools.py` | Bash；共享隔离实验目录与产物导出 |
 
-各行命令加 `--demo` 即运行固定示例；v1 的 demo 保留“不带历史 / 带历史”的对照。v3 没有 Agent Loop：工具结果回填后只再回答一次；需要继续请求工具的任务应使用 v4。
+将上面命令中的 Tag 替换为表中任意一项。v3 不会持续循环请求工具；多步任务用 v4。v5 只保留 Bash 工具。SDK 调用、history/messages 和循环直接写在对应 `agent.py` 中；教师脚本不参与课堂程序运行。
 
-也可直接执行一条自定输入，不进入交互。`--demo` 与 `--prompt` / `--task` 互斥：
+默认 `TEMPERATURE = 0`；v0 的 `TOKEN_STEPS = 12`。温度对照直接修改 v0 顶部的 `TEMPERATURE`，比较 0 与 0.8，结束后改回 0 再切换版本。API 单次超时 45 秒，最多重试 1 次；v4/v5 的 `MAX_ITERATIONS = 100` 是每个用户任务的上限，达到上限表示停止，不能据此认定任务完成。
 
-```bash
-python run_stage.py v0-token --prompt "热力学第一定律告诉我们，" --temperature 0.8
-python run_stage.py v3-tools --task "请计算 (123.4 * 56.7) / 8.9"
-python run_stage.py v5-execution --task "查看 data/temperature.csv 的前五行，告诉我列名"
-```
-
-最终版 `python agent.py` 默认进入隔离执行交互；`--calculator` 切换到计算工具循环，`--chat` 切换到角色对话，`--tokens --temperature 0.8` 切换到独立续写交互。这些入口都可结合 `--demo`。
-
-## 断网也能授课
-
-`recordings/<tag>.json` 保存对应版本的真实 API 演示，包含请求快照、响应、耗时、模型、源码SHA与终端转录。更新代码后须重新录制并校验对应关系；旧版录制归档到 `recordings/archive/2026-10-15/`，旧版 Tag 保留在 `archive/2026-10-15/<原Tag>`，供追溯使用。温度对照为 `recordings/v0-token-temperature0.json`。
+课堂结束后回到最终分支：
 
 ```bash
-python run_stage.py v5-execution --replay recordings/v5-execution.json
+git switch codex/teaching-cleanup
 ```
 
-回放明确标为 **REPLAY**，不需要SDK或密钥，不调用API、不执行工具、不重建报告。开场可同时打开已保留的 `examples/final-report.md`。默认不会在网络失败时悄悄切换回放。
+## 现场输入与离线备份
 
-重新彩排请另存文件，保留课堂备份：
+每次启动后手工输入问题。例如在 v5 的 `$ ` 后输入：
+
+```text
+读取 data/temperature.csv，计算温度平均值、最大值和最小值，保存 Markdown 报告。先检查数据，再生成 analysis.py 并执行，最后重新读取检查文件。
+```
+
+固定 CSV 的独立基准为 **10 行、平均 24.5°C、最大 29°C、最小 20°C**。它是课堂验证任务，不是 Agent 的内置分支；其他输入按用户自己的任务执行。统计核对由教师脚本和测试完成，不由 Agent 用固定答案判断自己成功。
+
+在最终分支运行 `python build_viewer.py`，再双击生成的 `web/index.html`，可离线展示六阶段源码、差异和真实轨迹。页面是本地生成物，切换六个教学 Tag 时不会被旧页面覆盖。轨迹明确标记 **REPLAY**，只展示已发生的运行，不调用 API、不执行历史工具、不重建报告；网络失败不会自动切换。现场需要文件时，可打开已核实的 [examples/final-report.md](examples/final-report.md)。
+
+新版本彩排与真实 API 录制使用独立教师脚本：
 
 ```bash
-python run_stage.py v0-token --demo --temperature 0.8 --record recordings/rehearsal-token.json
-python run_stage.py v5-execution --demo --record recordings/rehearsal-agent.json
+python verify_live.py
 ```
 
-API单次超时45秒，最多重试1次；工具超时8秒；v4/v5 的每个任务默认最多 **100 轮**，`--max-iterations` 可设为 1—1000。达到上限会停止，不等于任务完成。截断、超限、验收失败均不标记任务成功。模型文字仍可能变化；固定CSV的正确结果不变：**10行、平均24.5°C、最大29°C、最小20°C**。
+录制需核对模型、时间、源码 SHA 和真实输入，不能把旧输出当作新代码的验证。重构前的 Tag 原样保留在 `archive/2026-10-15/pre-cleanup/<tag>`，对应旧录制原样保留在 `recordings/archive/2026-10-15/pre-cleanup/`；此前 `archive/2026-10-15/<tag>` 与 `recordings/archive/2026-10-15/` 的第一代归档继续保留。当前课堂录制放在 `recordings/`。
 
 ## 执行隔离
 
-`v5-execution` 优先使用本地已有Docker镜像，否则macOS使用Seatbelt；没有可用后端即拒绝执行。Docker需提前启动并执行 `docker pull python:3.12-slim`；程序不会自动联网拉镜像。
+v5 优先使用本地已有 Docker 镜像，否则 macOS 使用 Seatbelt；没有可用后端即拒绝执行。Docker 需提前启动并执行 `docker pull python:3.12-slim`，程序不会自动联网拉镜像。
 
-本机已实测macOS Seatbelt：禁网、数据只读、临时目录隔离、仅3个允许写的文件、禁子进程、输出/文件大小上限、超时、环境变量清理。交互会话中保持同一个实验目录，便于继续查看或修改先前产物；结束后导出到当前目录 `lab-runs/run-*/`，再清理临时目录。`:reset` 清空模型上下文，实验文件保留。
+同一会话保持一个临时实验目录，各轮可继续读取或修改先前产物。结束时先做文件安全检查，将已有非空产物导出到当前目录的 `lab-runs/run-*/`，再清理临时目录。无产物的问答也能正常结束。
 
-只有 `--demo` 强制执行固定 CSV 报告任务，并由可信代码独立核对统计结果与报告。自由交互和 `--task` 按用户任务执行，不要求每次生成温度报告；产物仍须通过文件安全检查，任务是否完成应结合工具结果和实际文件判断。
+`tools.py` 包含参数校验、隔离后端、目录准备与安全导出。保留禁网、数据只读、文件白名单、超时、输出与文件大小限制；仅允许写 `analysis.py`、`result.json`、`report.md`。支持的命令见工具 Schema。接口不支持管道、shell 重定向、cd 和后台任务；字面 Python heredoc 转成等价 `python3 -c`，避免 Bash 创建子进程。
 
-模型可写的文件仅 `analysis.py`、`result.json`、`report.md`；可用命令见工具Schema。不支持管道、shell重定向、cd和后台任务；字面Python heredoc由辅助层转换为等价 `python3 -c`，避免Bash创建子进程。目录限制和命令过滤之外还有OS隔离，详见 [安全边界与实测](docs/sandbox.md)。Docker分支尚未在本机验证。Codex嵌套沙箱可能阻止Seatbelt启动，此时在本机普通终端运行；程序仍拒绝未隔离执行。
+命令过滤之外还必须有 OS 隔离，详见 [安全边界与历史实测](docs/sandbox.md)。Codex 嵌套沙箱可能阻止 Seatbelt 启动；此时在普通终端预检或展示真实轨迹，不解除隔离。新版本实际隔离验证的通过、失败和跳过分别记录在 [VALIDATION.md](VALIDATION.md)。
 
-## 教师入口
+## 教师入口与检查
 
-- 双击 [web/index.html](web/index.html)：阶段导航、完整代码、相邻Tag差异、能力说明、真实输出，完全离线，无CDN；字号可切换至投影模式。
-- [45分钟教师讲稿](docs/teacher_script.md)
-- [16页PPT内容大纲](docs/slides_outline.md)（按请求交付大纲）
-- [官方新闻、API与模板来源](docs/sources.md)
-- `python chat_template_demo.py`：固定公开V3模板的普通文本消息子集，保留完整Jinja原文与SHA，不声称代表Flash托管API内部格式。
-
-重新构建网页：`python build_viewer.py`。源码和diff直接读取Git Tags，不拿当前工作区冒充旧版本。浏览器自动预览受当前URL策略限制，未完成自动视觉检查；构建、转义和交互结构测试已通过。
-
-## 验证与结构
+- [45 分钟教师讲稿](docs/teacher_script.md)
+- [16 页 PPT 内容大纲](docs/slides_outline.md)
+- [官方新闻、API 与模板来源](docs/sources.md)
+- `python chat_template_demo.py`：固定公开 V3 模板的普通文本消息子集，保留完整 Jinja 原文与 SHA；不声称代表 Flash 托管 API 内部格式。
+- `python build_viewer.py`：从真实 Git Tags 重建完全离线网页；不拿工作区代码冒充历史版本。
 
 ```bash
 python preflight.py
 python -m unittest discover -s tests -v
 ```
 
-`preflight.py` 离线检查全部Tag可导出运行、源码与真实录制对应、关键机制与报告基准。单元测试里的fixture明确标注为测试数据，不作为课堂真实输出；没有隔离后端时，真实隔离集成测试会显示skip原因。
+预检离线核对 Tag、课堂文件依赖、源码与录制对应关系及报告基准。测试 fixture 只作测试数据，不作为课堂真实输出；隔离测试不可运行时报告 skip 原因。完整验收还包括逐 Tag 的真实 API 冒烟、v5 统计核验和网页检查；具体结果见 [VALIDATION.md](VALIDATION.md)。
 
-`agent.py` 是教学主线；`common.py` 仅配置/录制；`tools.py` 验证参数并执行；`sandbox.py` 承担OS边界；`lab.py` 准备数据、验收并导出。验收证据见 [VALIDATION.md](VALIDATION.md)。
-
-讲授中的Stage 5是新闻案例；代码Tag的v5是隔离执行，安排在30—39分钟内。不要将两套编号误当成额外课时。
+讲授中的 Stage 5 是新闻案例；代码 Tag 的 v5 是隔离执行，安排在 30—39 分钟内。

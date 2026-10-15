@@ -5,3 +5,4 @@ __pycache__/
 .env
 lab-runs/
 .coverage
+/web/index.html

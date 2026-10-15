@@ -1,46 +1,41 @@
-# 实施计划
+# 课堂精简重构规格
 
-目标：用同一个 `agent.py` 的六次演进，讲清文本续写、上下文、角色、工具、循环、隔离执行。面向泛工科本科生，45分钟。
+目标：六个独立的 `agent.py` 教学快照，面向泛工科本科生，在 45 分钟内讲清文本续写、上下文、角色、工具、循环与隔离执行。
 
-## 版本与验收
+## 版本与入口
 
-| 顺序 | Tag | 唯一新增机制 | 验证后提交条件 |
-|---|---|---|---|
-| 0 | v0-token | 原始 Completion + 真实 logprobs | DeepSeek 实际请求成功；逐位置展示上下文/候选/概率/选中 token；录制可回放 |
-| 1 | v1-memory | history 文本 | 独立调用与带历史调用对照；实验编号恢复；保留token演示 |
-| 2 | v2-chat | 结构化 messages | system/user/assistant 多轮对话；官方开源Chat Template示意与API边界说明 |
-| 3 | v3-tools | 一轮工具调用 | schema、tool call、Python执行、tool result、最终回答都可见；参数验证 |
-| 4 | v4-agent-loop | 直接可见的循环 | 多步工具依赖与反馈；最大迭代；截断/失败不冒充完成 |
-| 5 | v5-execution | 受限Bash | OS隔离、禁网、目录限制、超时、危险操作防护；CSV→代码→执行→检查→Markdown |
+| Tag | 运行文件 | 核心验收 |
+|---|---|---|
+| v0-token | `agent.py` | 独立 Completion、12 个 token、真实 logprobs、逐位置候选概率 |
+| v1-memory | `agent.py` | 文本 history；第二次请求可见第一轮信息；没有 token 演示 |
+| v2-chat | `agent.py` | system/user/assistant messages；没有旧版入口 |
+| v3-tools | `agent.py`、`tools.py` | calculator；一次请求与回填后回答，不持续循环 |
+| v4-agent-loop | `agent.py`、`tools.py` | calculator；根据实际反馈持续决策；每任务最多 100 轮 |
+| v5-execution | `agent.py`、`tools.py` | 仅 Bash；隔离目录、跨轮文件、安全导出；每任务最多 100 轮 |
 
-每版先运行本地检查和真实API演示，再 `git commit`、创建对应 annotated tag。失败先修复，不提前占用Tag。公共支持代码处理录制和错误，关键SDK调用、history、messages、tool dispatch、循环始终在教学代码中可读。
+运行方式统一为 `git switch --detach <tag>` 后 `python agent.py`。只保留自由交互，提示符 `$ `，空白输入跳过，Ctrl+D 结束，Ctrl+C 平稳退出；重新启动即开始全新会话。配置放文件顶部，温度默认 0；密钥与模型覆盖值来自环境。保留 API 超时和重试。
 
-## 交互与参数修订
+SDK 调用、history、messages、工具分发与循环直接呈现在 `agent.py`。课堂运行不依赖统一参数、兼容分派、录制包装或教师辅助脚本。v5 的沙箱、目录准备与导出合入 `tools.py`；固定 CSV 正确性验收移到教师验证侧。
 
-- 课堂概率统一写作 `Pr[token | context]`，表示给定上下文时下一个 token 的条件概率。
-- 六个版本默认自由交互；`--demo` 明确选择固定示例。v0 每次接受独立续写前缀；v1 文本 history、v2 结构化 messages 均支持多轮；v3 保留跨用户轮历史但每轮只进行一次工具调用与回填；v4 每个任务进入循环；v5 在同一个隔离目录支持多轮任务。
-- `:quit` 退出交互；有历史的版本用 `:reset` 清空模型上下文。v5 重置对话不删除实验产物。
-- v0 的 `--prompt`、其他版本的 `--task` 可执行一次自定输入。它们无需 `--demo`，结束后直接退出。
-- v4/v5 每个任务默认最多 100 轮，`--max-iterations` 范围 1—1000；达到上限保持未确认完成状态。
-- v5 的固定 CSV 数值验收只用于 `--demo`；自由任务仍保留目录、文件、命令、超时和 OS 隔离限制。
-- 修订时先保留旧 Tag 到 `archive/2026-10-15/<原Tag>`，旧录制移入 `recordings/archive/2026-10-15/`；逐阶段验证、提交、替换六个课程 Tag，再从真实 Tag 重建网页。新代码不得与旧录制冒充同一次验证。
+## Git 与教学材料
 
-## 并行交付
+- 在 `codex/teaching-cleanup` 分支生成六个精简快照，逐阶段验证后更新课程 Tag，最终分支内容为 v5。
+- 重构前六 Tag 原样保留为 `archive/2026-10-15/pre-cleanup/<tag>`，旧录制原样移到 `recordings/archive/2026-10-15/pre-cleanup/`；保留第一代归档。
+- 网页从真实 Tag 读取源码与相邻差异；复制命令直接切 Tag 并运行 `agent.py`；真实轨迹明确标识 REPLAY。
+- README、45 分钟讲稿和 16 页大纲统一为手工输入示例。温度对照通过修改文件顶部常量进行，切换版本前恢复默认值。
+- 保留 `preflight.py`、`build_viewer.py`、`chat_template_demo.py` 和测试；真实 API 验证与录制由外部 `verify_live.py` 完成。
 
-1. 官方文档核实：OpenAI SDK、DeepSeek Completion/logprobs/tool calling；模型ID以实际可用探测为准。
-2. 可视化：标准库Git读取六个Tag、difflib生成静态网页，展示真实代码、差异、能力、录制输出。
-3. 课程：45分钟教师讲稿、PPT逐页内容大纲、2—3个官方新闻案例及日期/来源。
-4. 最终检查：六Tag导出独立运行；离线回放明确标识；最终统计结果核对；网页浏览器检查；密钥不入库。
+## 验证要求
 
-## 稳定性与事实边界
+- 六 Tag 独立导出运行，只依赖各自约定的一至两个本地运行文件；检查无跨版本功能或辅助运行模块残留。
+- 检查提示符、空白、EOF、中断和普通字符串输入；v0 输入独立，v1/v2 多轮上下文，v3 单次工具边界，v4 每任务轮数重新计数。
+- 保留算术参数校验、截断与工具失败处理回归；v5 检查跨轮文件、安全导出、禁网、数据只读、白名单、超时及资源限制，无后端即拒绝执行。
+- 逐阶段真实 API 冒烟；v5 手工任务读取 CSV、生成并运行代码、保存结果与报告。外部独立核对 **10 行、平均 24.5°C、最大 29°C、最小 20°C**。
+- 录制记录真实模型、时间、输入、响应与源码 SHA；不修改旧记录冒充当前验证。网页重建后检查六阶段源码、差异、命令与录制来源。
+- 通过、失败、跳过分别记入 `VALIDATION.md`；嵌套沙箱阻止隔离测试时，不把跳过记作通过。
 
-- API key只从环境读取；不把环境变量、凭据写入录制。
-- 限制请求超时、输出长度和Agent步数；固定CSV；低temperature不保证完全确定性。
-- 保存真实API请求/响应和终端转录；回放不调用API也不执行历史命令。
-- 候选概率仅由API logprob取exp；不对top-k重新归一化，不声称覆盖完整词表。
-- Chat Template只展示一个明确标注的开源模型，不声称是远程API当前内部格式。
-- 命令过滤只作额外防护；实际执行必须由OS沙箱/容器隔离，无后端则拒绝。
+## 事实与安全边界
 
-## 课程时间
+密钥不打印、不入库、不进入执行环境。候选概率只由 API logprob 取 exp，不重新归一化 top-k；低温不保证正确或逐字复现。Chat Template 只展示明确标注的公开 DeepSeek-V3 历史版本。命令过滤仅是额外检查，实际执行必须有 OS 沙箱或容器隔离。现有新闻日期与来源保留，不引入新的时效性主张。
 
-00—04最终演示；04—11 token；11—17 history；17—22 roles；22—30 tools；30—39 loop与隔离；39—43案例；43—45总结。
+课程时间：00—04 最终演示；04—11 token；11—17 history；17—22 roles；22—30 tools；30—39 loop 与隔离；39—43 案例；43—45 总结。

@@ -1,11 +1,49 @@
 """Real OS boundary checks, using disposable sentinel files (never real keys)."""
 
 from pathlib import Path
+import signal
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 
-import sandbox
+import tools as sandbox
+
+
+class CaptureInterruption(unittest.TestCase):
+    def test_ctrl_c_stops_and_reaps_child_before_propagating(self):
+        processes = []
+        original_popen = sandbox.subprocess.Popen
+
+        def start(*args, **kwargs):
+            process = original_popen(*args, **kwargs)
+            processes.append(process)
+            return process
+
+        with tempfile.TemporaryDirectory(prefix="capture-interrupt-") as folder:
+            try:
+                with patch.object(sandbox.subprocess, "Popen", side_effect=start), \
+                        patch.object(sandbox.selectors, "DefaultSelector") as factory, \
+                        patch.object(sandbox.os, "killpg", wraps=sandbox.os.killpg) as kill:
+                    selector = factory.return_value.__enter__.return_value
+                    selector.get_map.return_value = {1: object()}
+                    selector.select.side_effect = KeyboardInterrupt()
+                    with self.assertRaises(KeyboardInterrupt):
+                        sandbox._capture(
+                            [sys.executable, "-c", "import time; time.sleep(30)"],
+                            Path(folder), 8)
+                    self.assertEqual(len(processes), 1)
+                    process = processes[0]
+                    kill.assert_called_once_with(process.pid, signal.SIGKILL)
+                    self.assertEqual(process.returncode, -signal.SIGKILL)
+                    self.assertTrue(process.stdout.closed)
+            finally:
+                # Also clean up if a regression makes one of the assertions fail.
+                for process in processes:
+                    if process.poll() is None:
+                        sandbox.os.killpg(process.pid, signal.SIGKILL)
+                    process.wait()
+                    process.stdout.close()
 
 
 class SandboxValidation(unittest.TestCase):
@@ -18,8 +56,8 @@ class SandboxValidation(unittest.TestCase):
             "temperature\n20\n22\n24\n", encoding="utf-8")
 
     def test_missing_backend_fails_closed(self):
-        with patch("sandbox.backend_status", return_value="unavailable: test"):
-            with patch("sandbox.subprocess.Popen") as popen:
+        with patch("tools.backend_status", return_value="unavailable: test"):
+            with patch("tools.subprocess.Popen") as popen:
                 result = sandbox.run_bash("printf never-executed", self.workspace)
         self.assertEqual(result["error"], "sandbox_unavailable")
         popen.assert_not_called()

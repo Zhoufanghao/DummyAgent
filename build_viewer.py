@@ -3,8 +3,10 @@
 
 import argparse
 import difflib
+import hashlib
 import html
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -14,10 +16,7 @@ TAGS = (
     "v0-token", "v1-memory", "v2-chat", "v3-tools",
     "v4-agent-loop", "v5-execution",
 )
-SOURCE_FILES = (
-    "agent.py", "common.py", "tools.py", "sandbox.py", "lab.py",
-    "chat_template_demo.py", "data/deepseek_v3_chat_template.jinja",
-)
+SOURCE_FILES = ("agent.py", "tools.py")
 
 
 class BuildError(Exception):
@@ -54,23 +53,31 @@ def read_stages(metadata):
 
 def load_versions(repo, stages, source_files=SOURCE_FILES):
     """只读取已存在的真实 tags；不使用工作区文件补齐历史版本。"""
+    try:
+        refs = json.loads(os.environ.get("DUMMY_AGENT_STAGE_REFS", "{}"))
+    except ValueError as exc:
+        raise BuildError("DUMMY_AGENT_STAGE_REFS 必须是阶段到 Git ref 的 JSON 对象。") from exc
+    if (not isinstance(refs, dict) or any(k not in TAGS or not isinstance(v, str) or not v
+                                         for k, v in refs.items())):
+        raise BuildError("DUMMY_AGENT_STAGE_REFS 只能指定六个教学阶段及非空 Git ref。")
     existing = set(git(repo, "tag", "--list").splitlines())
-    missing = [s["tag"] for s in stages if s["tag"] not in existing]
+    missing = [s["tag"] for s in stages if s["tag"] not in existing and s["tag"] not in refs]
     if missing:
         raise BuildError("缺少 Git tags：" + ", ".join(missing)
                          + "。请逐阶段验证、提交并创建 tag 后再生成网页。")
     versions = []
     for stage in stages:
         tag = stage["tag"]
-        paths = set(git(repo, "ls-tree", "-r", "--name-only", tag).splitlines())
+        ref = refs.get(tag, tag)
+        paths = set(git(repo, "ls-tree", "-r", "--name-only", ref).splitlines())
         if "agent.py" not in paths:
             raise BuildError(f"{tag} 中没有 agent.py，无法展示同一程序的演进。")
         sources = {
-            path: git(repo, "show", f"{tag}:{path}")
+            path: git(repo, "show", f"{ref}:{path}")
             for path in source_files if path in paths
         }
         versions.append({
-            **stage, "sha": git(repo, "rev-parse", f"{tag}^{{commit}}").strip(),
+            **stage, "sha": git(repo, "rev-parse", f"{ref}^{{commit}}").strip(),
             "sources": sources,
         })
     return versions
@@ -156,10 +163,10 @@ def recording_text(data):
     return ""
 
 
-def render_recording(repo, tag, filename=None):
+def render_recording(repo, tag, filename=None, version=None):
     path = repo / "recordings" / (filename or f"{tag}.json")
     if not path.is_file():
-        return ('<p class="empty">尚无真实运行记录。联网验证后，'
+        return ('<p class="empty">尚无当前源码的真实运行记录。使用教师验证工具联网验证后，'
                 f'将记录保存到 <code>recordings/{escape(tag)}.json</code> 再重新构建本页。</p>')
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -187,6 +194,18 @@ def render_recording(repo, tag, filename=None):
             provenance.append("API 返回模型：" + escape(", ".join(returned_models)))
     meta = " · ".join(provenance)
     result = f'<p class="recording-meta">来源：recordings/{escape(path.name)} · 离线回放</p>'
+    if version and isinstance(data, dict):
+        hashes = {name: hashlib.sha256(source.encode("utf-8")).hexdigest()
+                  for name, source in version["sources"].items()}
+        recorded = data.get("runtime_sha256", {})
+        matches = data.get("source_sha256") == hashes["agent.py"]
+        if "tools.py" in hashes or recorded:
+            matches = matches and isinstance(recorded, dict) and all(
+                recorded.get(name) == digest for name, digest in hashes.items())
+        if data.get("source_commit"):
+            matches = matches and data["source_commit"] == version["sha"]
+        if not matches:
+            result += '<p class="recording-meta">历史记录：此输出不对应当前展示的源码。</p>'
     if isinstance(data, dict) and data.get("kind") == "live-api-recording":
         result += '<p class="recording-meta">记录类型：真实 API 调用录制；当前页面展示已保存输出。</p>'
     if meta:
@@ -219,13 +238,10 @@ def render_stage(repo, stage, previous, index, source_files):
             '</div></div>'
         )
     extra = ""
-    if stage["tag"] == "v0-token" and (repo / "recordings/v0-token-temperature0.json").is_file():
-        extra = ('<details><summary>真实对照：temperature = 0（展开）</summary>'
-                 + render_recording(repo, "v0-token", "v0-token-temperature0.json") + '</details>')
     if stage["tag"] == "v2-chat":
         extra += ('<p class="page-note">公开模板辅助演示：在仓库根目录运行 '
                   '<code>python chat_template_demo.py</code>。该历史V3模板不代表当前Flash托管API内部格式。</p>')
-    command = f"python run_stage.py {stage['tag']}"
+    command = f"git switch --detach {stage['tag']}\npython agent.py"
     hidden = " hidden" if index else ""
     return f'''<article class="stage" id="{escape(stage['tag'])}" data-stage="{escape(stage['tag'])}"{hidden}>
       <div class="eyebrow">{escape(stage['minutes'])} <span>同一个 agent.py · 第 {index + 1} / 6 个版本</span></div>
@@ -239,15 +255,15 @@ def render_stage(repo, stage, previous, index, source_files):
       <section class="run-command" aria-label="运行当前阶段">
         <div class="command-row"><code class="command-text">{escape(command)}</code>
           <button class="copy-command" type="button">复制交互命令</button></div>
-        <p>默认进入自由交互；输入 <code>:quit</code> 退出，<code>:reset</code> 清空当前会话。
-          加 <code>--demo</code> 才使用固定课堂示例。网页只展示代码与回放；请在终端运行命令。</p>
+        <p>直接进入自由交互，以 <code>$ </code> 提示输入；按 <code>Ctrl+D</code> 结束。
+          网页只展示代码与已保存输出；请在终端运行命令。</p>
       </section>
       <div class="version-bar"><span><code>{escape(stage['tag'])}</code> · commit <code title="{escape(stage['sha'])}">{escape(stage['sha'][:12])}</code></span>
         <span class="stats"><b class="plus">+{added}</b> / <b class="minus">−{removed}</b> 行 <small>全部教学源码</small></span></div>
       <div class="code-toolbar"><label>源码文件 <select class="file-selector" aria-label="选择源码文件">{options}</select></label>
         <span class="legend"><i class="added"></i> 新增 <i class="removed"></i> 删除 <i class="modified"></i> 修改后的行</span></div>
       {''.join(panels)}
-      <section class="recording"><h2>示例运行结果 <span class="replay-badge">已保存输出 · 回放</span></h2>{render_recording(repo, stage['tag'])}{extra}</section>
+      <section class="recording"><h2>示例运行结果 <span class="replay-badge">已保存输出</span></h2>{render_recording(repo, stage['tag'], version=stage)}{extra}</section>
       <footer>统计仅覆盖本页的教学源码。替换一行计为删除一行、增加一行。页面内容来自 Git tag；本页不调用 API，也不执行模型生成的命令。</footer>
     </article>'''
 
@@ -279,7 +295,7 @@ h1 { font-size:clamp(26px,2.5vw,38px); line-height:1.3; margin:9px 0 10px; lette
 .learning-grid h2 { font-size:12px; color:var(--accent); margin-bottom:6px; } .learning-grid p { margin:0; font-size:14px; }
 .run-command { margin-bottom:20px; padding:12px 16px; background:#edf7f4; border:1px solid #c6e1d8; border-radius:8px; }
 .command-row { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
-.command-text { overflow-wrap:anywhere; font-size:14px; }
+.command-text { overflow-wrap:anywhere; white-space:pre-wrap; font-size:14px; }
 .copy-command { padding:5px 10px; border:1px solid #82b6a7; border-radius:5px; background:#fff; color:#155f4f; cursor:pointer; font-size:12px; }
 .run-command p { font-size:12px; color:var(--muted); margin:8px 0 0; }
 .version-bar,.code-toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
@@ -380,7 +396,7 @@ def build(repo, metadata, output, source_files=SOURCE_FILES):
   <p class="course-title">从文字接龙<br>到 AI Agent</p>
   <p class="subtitle">用一个 API 构建智能体</p>
   <nav aria-label="教学阶段">{''.join(navigation)}</nav>
-  <p class="sidebar-note">点击阶段即可查看真实 Git 版本。<br>绿：新增 · 红：删除 · 紫：修改<br>学生无需使用 Git 命令。</p>
+  <p class="sidebar-note">点击阶段即可查看真实 Git 版本。<br>绿：新增 · 红：删除 · 紫：修改<br>终端切换版本后直接运行 agent.py。</p>
 </aside><main>
   <div class="page-controls"><p class="page-note">离线代码演进界面 · 源码来自六个 Git tags · 示例来自已保存运行记录 · 无需联网</p>
     <label class="font-control">代码字号 <select id="font-size" aria-label="代码字号"><option value="14">14 px</option><option value="16">16 px</option><option value="18">18 px · 投影</option><option value="20">20 px · 投影</option></select></label></div>

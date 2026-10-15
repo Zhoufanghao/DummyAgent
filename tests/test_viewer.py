@@ -1,11 +1,14 @@
 """真实临时 Git 仓库验证 tags、差异和静态输出的安全转义。"""
 
 import importlib.util
+import hashlib
 import json
+import os
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -15,6 +18,12 @@ SPEC.loader.exec_module(viewer)
 
 
 class ViewerTests(unittest.TestCase):
+    def setUp(self):
+        environment = patch.dict(os.environ)
+        environment.start()
+        self.addCleanup(environment.stop)
+        os.environ.pop("DUMMY_AGENT_STAGE_REFS", None)
+
     def test_replacements_are_both_added_and_removed(self):
         added, removed, highlights = viewer.line_changes("same\nold\n", "same\nnew\nmore\n")
         self.assertEqual((added, removed), (2, 1))
@@ -67,6 +76,7 @@ class ViewerTests(unittest.TestCase):
                 "kind": "live-api-recording", "stage": "v0-token",
                 "recorded_at": "2026-10-15T00:00:00Z", "model_requested": "requested-model",
                 "transcript": '<script>THIS IS A RECORDING</script>',
+                "source_sha256": hashlib.sha256(b'print("tagged-0")\n').hexdigest(),
                 "events": [{"response": {"model": "returned-model"}}],
             }), encoding="utf-8")
             output = viewer.build(repo, metadata, repo / "web" / "index.html")
@@ -80,24 +90,40 @@ class ViewerTests(unittest.TestCase):
             self.assertIn('&lt;img src=x', page)
             self.assertNotIn('<img src=x', page)
             self.assertIn('这个版本中没有此文件', page)
-            self.assertIn('尚无真实运行记录', page)
+            self.assertIn('尚无当前源码的真实运行记录', page)
             self.assertIn('请求模型：requested-model', page)
             self.assertIn('API 返回模型：returned-model', page)
             self.assertIn('真实 API 调用录制', page)
             self.assertEqual(page.count('class="copy-command"'), 6)
             for tag in viewer.TAGS:
-                self.assertIn(f'python run_stage.py {tag}</code>', page)
-            self.assertIn('默认进入自由交互', page)
-            self.assertIn('--demo', page)
-            self.assertIn(':quit', page)
-            self.assertIn(':reset', page)
+                self.assertIn(f'git switch --detach {tag}\npython agent.py</code>', page)
+            self.assertIn('直接进入自由交互', page)
+            self.assertIn('Ctrl+D', page)
+            for removed in ('run_stage.py', 'common.py', 'sandbox.py', 'lab.py', '--demo', ':quit', ':reset'):
+                self.assertNotIn(removed, page)
             self.assertIn('Pr[token | context]', page)
             self.assertIn('navigator.clipboard.writeText(command)', page)
             self.assertIn('命令已选中，请手动复制', page)
-            self.assertIn('data/deepseek_v3_chat_template.jinja', page)
-            self.assertIn('&lt;｜User｜&gt;', page)
+            self.assertIn('python chat_template_demo.py', page)
+            self.assertNotIn('data/deepseek_v3_chat_template.jinja', page)
             self.assertNotIn('innerHTML', page)
             self.assertNotIn('https://', page)
+
+            # A candidate is a real committed ref; public tags and worktree files remain distinct.
+            git("add", "agent.py")
+            git("commit", "-qm", "Candidate fixture")
+            candidate = git("rev-parse", "HEAD").strip()
+            with patch.dict(os.environ, {"DUMMY_AGENT_STAGE_REFS": json.dumps({"v0-token": candidate})}):
+                candidate_page = viewer.build(repo, metadata, repo / "web/candidate.html").read_text()
+            self.assertIn('WORKING TREE MUST NOT APPEAR', candidate_page)
+            self.assertIn('历史记录：此输出不对应当前展示的源码', candidate_page)
+            self.assertIn('tagged-0', git("show", "v0-token:agent.py"))
+
+    def test_invalid_candidate_refs_are_rejected(self):
+        for mapping in ('not-json', '[]', '{"unknown":"HEAD"}', '{"v0-token":3}'):
+            with self.subTest(mapping=mapping), patch.dict(os.environ, {"DUMMY_AGENT_STAGE_REFS": mapping}):
+                with self.assertRaises(viewer.BuildError):
+                    viewer.load_versions(ROOT, [])
 
 
 if __name__ == "__main__":

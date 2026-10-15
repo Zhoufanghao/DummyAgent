@@ -13,7 +13,8 @@ from types import SimpleNamespace as NS
 import unittest
 from unittest.mock import patch
 
-import lab
+import tools as lab
+from verify_live import verify_artifacts
 
 
 class LabArtifacts(unittest.TestCase):
@@ -21,7 +22,6 @@ class LabArtifacts(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix="agent-lab-")
         self.addCleanup(self.temp.cleanup)
         self.workspace = Path(self.temp.name).resolve()
-        lab.seed(self.workspace)
         with lab.SOURCE.open(encoding="utf-8", newline="") as stream:
             values = [float(row["temperature"]) for row in csv.DictReader(stream)]
         self.expected = {"count": len(values), "mean": statistics.mean(values),
@@ -39,12 +39,13 @@ class LabArtifacts(unittest.TestCase):
         (self.workspace / "result.json").write_text(json.dumps(actual), encoding="utf-8")
 
     def test_seed_is_independent_copy(self):
+        lab.seed(self.workspace)
         source = lab.SOURCE.read_bytes()
         (self.workspace / "data/temperature.csv").write_text("modified")
         self.assertEqual(lab.SOURCE.read_bytes(), source)
 
     def test_complete_artifacts_accepted(self):
-        expected, report = lab.verify(self.workspace)
+        expected, report = verify_artifacts(self.workspace)
         self.assertEqual(expected, self.expected)
         self.assertEqual(report, self.report)
 
@@ -53,50 +54,50 @@ class LabArtifacts(unittest.TestCase):
             with self.subTest(value=value):
                 self.write_statistics({**self.expected, "mean": value})
                 with self.assertRaises(ValueError):
-                    lab.verify(self.workspace)
+                    verify_artifacts(self.workspace)
 
     def test_oversized_number_is_validation_error(self):
         self.write_statistics({**self.expected, "mean": 10 ** 400})
         with self.assertRaises(ValueError):
-            lab.verify(self.workspace)
+            verify_artifacts(self.workspace)
 
     def test_extra_result_fields_rejected(self):
         self.write_statistics({**self.expected, "extra": "unrequested"})
         with self.assertRaises(ValueError):
-            lab.verify(self.workspace)
+            verify_artifacts(self.workspace)
 
     def test_report_must_match_numeric_results(self):
         report = self.report.replace(f"最高温度：{self.expected['max']}", "最高温度：9999")
         (self.workspace / "report.md").write_text(report, encoding="utf-8")
         with self.assertRaises(ValueError):
-            lab.verify(self.workspace)
+            verify_artifacts(self.workspace)
 
-    def test_tampered_input_rejected(self):
-        (self.workspace / "data/temperature.csv").write_text("temperature\n999\n")
+    def test_unexpected_artifact_rejected(self):
+        (self.workspace / "notes.txt").write_text("unexpected artifact")
         with self.assertRaises(ValueError):
-            lab.verify(self.workspace)
+            verify_artifacts(self.workspace)
 
     def test_report_symlink_rejected_before_read(self):
         report = self.workspace / "report.md"
         report.unlink()
         report.symlink_to(lab.SOURCE)
         with self.assertRaises(ValueError):
-            lab.verify(self.workspace)
+            verify_artifacts(self.workspace)
 
     def test_report_hardlink_rejected_before_read(self):
         report = self.workspace / "report.md"
         report.unlink()
-        report.hardlink_to(self.workspace / "data/temperature.csv")
+        report.hardlink_to(self.workspace / "analysis.py")
         with self.assertRaises(ValueError):
-            lab.verify(self.workspace)
+            verify_artifacts(self.workspace)
 
-    def test_publish_copies_only_three_verified_files(self):
+    def test_export_copies_only_three_whitelisted_files(self):
         with tempfile.TemporaryDirectory(prefix="teacher-export-") as folder:
             previous = Path.cwd()
             try:
                 os.chdir(folder)
                 with contextlib.redirect_stdout(io.StringIO()):
-                    destination = lab.publish(self.workspace)
+                    destination = lab.export_outputs(self.workspace)
             finally:
                 os.chdir(previous)
             self.assertTrue(destination.is_relative_to(Path(folder).resolve()))
@@ -109,38 +110,41 @@ class LabArtifacts(unittest.TestCase):
                                     (self.workspace / name).stat().st_ino)
 
 
-class AcceptanceFeedback(unittest.TestCase):
-    def test_failed_acceptance_and_tool_failure_both_reach_next_llm_request(self):
-        # Explicit unit fixtures, never represented as live model output.
+class ToolFeedback(unittest.TestCase):
+    def test_tool_failure_reaches_next_llm_request(self):
+        # Explicit fixtures, never represented as live model output.
         import agent
         call = NS(id="fixture-call", function=NS(name="bash", arguments='{"command":"pwd"}'))
-        tool_message = NS(content=None, tool_calls=[call], model_dump=lambda **kwargs: {
+        message = NS(content=None, tool_calls=[call], model_dump=lambda **kwargs: {
             "role": "assistant", "tool_calls": [{"id": call.id, "type": "function",
             "function": {"name": call.function.name, "arguments": call.function.arguments}}]})
         replies = iter([
-            NS(choices=[NS(finish_reason="stop", message=NS(tool_calls=None, content="premature fixture"))]),
-            NS(choices=[NS(finish_reason="tool_calls", message=tool_message)]),
-            NS(choices=[NS(finish_reason="stop", message=NS(tool_calls=None, content="repaired fixture"))]),
+            NS(choices=[NS(finish_reason="tool_calls", message=message)]),
+            NS(choices=[NS(finish_reason="stop", message=NS(tool_calls=None, content="fixture answer"))]),
         ])
         observed = []
 
-        def fixture_response(method, **params):
+        def create(**params):
             observed.append(json.loads(json.dumps(params["messages"])))
             return next(replies)
 
-        args = NS(demo=True, model="unit-fixture", temperature=0, max_iterations=3)
-        client = NS(chat=NS(completions=NS(create=object())))
-        with patch.object(agent, "call", side_effect=fixture_response), \
-                patch.object(agent, "execute", return_value={"ok": False, "error": "fixture failure"}), \
-                patch.object(lab, "publish", side_effect=[ValueError("fixture mismatch"), Path("fixture-export")]), \
+        client = NS(chat=NS(completions=NS(create=create)))
+        with patch.object(agent, "execute", return_value={"ok": False, "error": "fixture failure"}), \
                 contextlib.redirect_stdout(io.StringIO()):
-            agent.agent_loop(client, args, [{"role": "user", "content": "fixture task"}],
-                             tools=[agent.BASH], workspace=Path("unused-fixture-workspace"))
-        self.assertEqual(len(observed), 3)
-        self.assertIn("外部验收未通过", observed[1][-1]["content"])
-        self.assertIn("fixture mismatch", observed[1][-1]["content"])
-        self.assertEqual(observed[2][-1]["role"], "tool")
-        self.assertIn("fixture failure", observed[2][-1]["content"])
+            agent.agent_loop(client, [{"role": "user", "content": "fixture task"}], Path("unused"))
+        self.assertEqual(len(observed), 2)
+        self.assertEqual(observed[1][-1]["role"], "tool")
+        self.assertIn("fixture failure", observed[1][-1]["content"])
+
+    def test_v5_rejects_other_tools_and_malformed_arguments(self):
+        for name, arguments in [("calculator", '{"expression":"2+3"}'),
+                                ("bash", "not json"), ("bash", "[]"),
+                                ("bash", '{"command":"pwd","extra":1}'),
+                                ("bash", '"' + 'x' * 9000 + '"')]:
+            with self.subTest(name=name, arguments=arguments[:50]), patch.object(lab, "run_bash") as run:
+                call = NS(function=NS(name=name, arguments=arguments))
+                self.assertFalse(lab.execute(call, Path("unused"))["ok"])
+                run.assert_not_called()
 
 
 class InteractiveExports(unittest.TestCase):
