@@ -18,8 +18,8 @@
 | 7 | 17:00—18:30 | 结构化消息 | system/user/assistant 三条短消息 | 打开 `agent_v2.py`，解释身份与顺序；role 不是执行授权 | [Chat API](https://api-docs.deepseek.com/api/create-chat-completion/) |
 | 8 | 18:30—22:00 | 一个公开 Chat Template | 标注“公开 DeepSeek-V3 checkpoint”；五行序列化示例 | 运行 `chat_template_demo.py`，再运行 `agent_v2.py` 做两轮对话 | [固定 tokenizer_config.json](https://huggingface.co/deepseek-ai/DeepSeek-V3/blob/d990f047635ab4866b112caff006a18ce221605f/tokenizer_config.json)；不代表当前托管 API 内部模板 |
 | 9 | 22:00—25:00 | Calculator 工具说明 | 同一复杂算式；工具名称和 expression；内联 calculator | 先在 `agent_v2.py` 看纯文本回答，再打开 v3 Schema。指出直接 `eval(expression)` 的计算位置，幂运算用 Python 的 `**` | Schema 是说明书；函数实现就在本文件 |
-| 10 | 25:00—30:00 | 一次工具调用的边界 | API 返回的 reasoning_content；`LLM → Tool Call → Python → Tool Result → LLM` | 先完成简单计算；28:30 在新 v3 会话输入两步题。开启 THINKING 后，区分思考文本中的计算与实际 Tool Result | 非流式响应返回后一次显示思考文本；不预设 v3 失败；[Chat API tools 字段](https://api-docs.deepseek.com/api/create-chat-completion/) |
-| 11 | 30:00—33:30 | 同一题，加入 Agent Loop | v4 的 while True；同题实际工具轨迹；标准终值 256373415452969682 | 圈出回填后分支差异，再在新 v4 会话粘贴同题。两版均开启 THINKING，核对实际执行、A、B 和终值 | 本次 v4 实际执行两次 calculator；其他运行也可能自行心算，步骤执行仍看 Tool Result |
+| 10 | 25:00—30:00 | 一次工具调用的边界 | `LLM → Tool Call → Python → Tool Result → LLM` | 先完成简单计算；28:30 在新 v3 会话输入两步题，查看实际 Tool Result 和终值 | v3 固定关闭 thinking，无思考打印；不预设失败；[Chat API tools 字段](https://api-docs.deepseek.com/api/create-chat-completion/) |
+| 11 | 30:00—33:30 | 同一题，加入 Agent Loop | v4 的 while True；同题实际工具轨迹；标准终值 256373415452969682 | 圈出回填后分支差异，再在新 v4 会话粘贴同题。两版均关闭 thinking，核对实际执行、A、B 和终值 | 本次 v4 实际执行两次 calculator；也可能自行心算，步骤执行仍看 Tool Result |
 | 12 | 33:30—34:50 | Bash 执行 | v5 的工具 Schema、run_bash、subprocess 调用、BASH_TIMEOUT | calculator 换成 Bash，循环保持；`["bash", "-c", command]` 直接执行，stdout/stderr 回填 | 当前目录执行、单命令 60 秒；不包含旧版隔离与导出机制 |
 | 13 | 34:50—39:00 | 再做温度报告 | 读到数据、算出结果、写入文件的实际证据 | 运行 `agent_v5.py` 输入开场任务，查看当前目录报告；按真实错误与反馈讲修正 | 教师独立核对 10 行、平均 24.5、最大 29、最小 20 ℃；无固定验收分支 |
 | 14 | 39:00—41:20 | Coding Agent 与 MCP | 2025-05-16 Codex 研究预览；2024-11-25 MCP 开源发布 | Codex 对应代码与测试反馈循环；MCP 对应统一工具接入，循环仍由应用实现 | [Codex 原始发布](https://openai.com/index/introducing-codex/)只作历史案例；[MCP 原始发布](https://www.anthropic.com/news/model-context-protocol) |
@@ -36,9 +36,9 @@
 每次只请求当前一步的计算，必须等工具返回后再进行下一步，不要把整条流程合成一个表达式。
 ```
 
-标准答案：`A = 121932631112635269`，`B = 635269`，最终整数 `256373415452969682`。本次 `THINKING=True` 的真实彩排中，v3 只执行第一步，随后正文输出未执行的 DSML 调用、没有终值，属于未完成；v4 实际执行两次 calculator 并得到正确终值。该次实测不保证其他运行也出现同样差异。
+标准答案：`A = 121932631112635269`，`B = 635269`，最终整数 `256373415452969682`。本次关闭 thinking 的真实彩排中，v3 只执行第一步，随后正文输出未执行的 DSML 调用、没有终值，属于未完成；v4 实际执行两次 calculator 并得到正确终值。其他运行不保证出现同样差异。
 
-开启 thinking 后，v3 也可能自行算出后续结果；模型还可能合并表达式，不预设 v3 失败或每次出现同样差异；按实际 Tool Result、步骤要求与终值核验。备用条件分支三步题见 [循环对照案例](loop_examples.md)，主讲不增加页数或课时。
+模型可能自行算出后续结果或合并表达式，不预设 v3 失败或每次出现同样差异；按实际 Tool Result、步骤要求与终值核验。备用条件分支三步题见 [循环对照案例](loop_examples.md)，主讲不增加页数或课时。
 
 ## 第 8 页唯一模板文本
 
@@ -54,7 +54,7 @@
 
 ## 代码与输出约定
 
-所有调用固定 `model="deepseek-flash"`。仅 v0 设置 TEMPERATURE 供 0/0.8 对照，v1—v5 使用 API 默认温度。v2 关闭 thinking；v3—v5 顶部 `THINKING = True` 同时控制请求中的 thinking enabled/disabled 与 reasoning_content 打印。该文本由 DeepSeek API 返回，在非流式完整响应后一次显示；v3—v5 的 max_tokens=8192 由思考与回答共用，完整 message 加入 messages 以保留 reasoning_content。工具执行仍核对 Tool Result。
+所有调用固定 `model="deepseek-flash"`。仅 v0 设置 TEMPERATURE 供 0/0.8 对照，v1—v5 使用 API 默认温度。v2—v4 固定关闭 thinking，v3/v4 不设思考开关或打印，max_tokens 分别为 500、1600。仅 v5 顶部 `THINKING = True` 控制模式与 reasoning_content 打印；该文本由 DeepSeek API 返回，在非流式完整响应后一次显示。v5 的 8192 token 由思考与回答共用，完整 message 保留 reasoning_content。工具执行仍核对 Tool Result。
 
 - 网页读取六个实际文件及相邻差异，显示 SHA-256；复制命令直接运行 `python agent_vN.py`，不用 Git。
 - 新增、删除和修改同时有文字或符号提示，不能只靠红绿；每次只圈一个机制。

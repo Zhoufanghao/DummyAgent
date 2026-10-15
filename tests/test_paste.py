@@ -155,6 +155,7 @@ class PasteTests(unittest.TestCase):
                 if stage >= 3:
                     assistant = terminal.requests[1]["messages"][-2]
                     self.assertEqual(assistant["reasoning_content"], "unit fixture reasoning")
+                if stage == 5:
                     self.assertIn("思考：", terminal.text)
                     self.assertLess(terminal.text.index("思考："), terminal.text.index("助手："))
                 else:

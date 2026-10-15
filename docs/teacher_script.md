@@ -15,7 +15,7 @@
 3. 分别手工运行 `python agent_v0.py` 到 `python agent_v5.py`。检查任意前缀、两轮对话、自定计算、Bash 文件任务，以及多行粘贴后按一次 Enter、空白输入、Ctrl+D 和 Ctrl+C。
 4. 运行 `python preflight.py`、`python build_viewer.py`，打开 `web/index.html`。检查六阶段源码、相邻文件差异、复制命令与真实输出；调到投影字号。网页源码直接来自当前六份文件。
 5. 核对 CSV 独立基准：10 行，温度 20—29 ℃，平均 24.5 ℃、最大 29 ℃、最小 20 ℃。检查真实生成的代码与报告，保留彩排成品；模型说“完成”不能替代核对。
-6. 仅 v0 设置 `TOKEN_STEPS = 12`、`TEMPERATURE = 0`，备课时试改温度为 0.8，课堂比较后恢复 0；v1—v5 不传 temperature，使用 API 默认值。v2 关闭 thinking；v3—v5 顶部的 `THINKING = True` 同时控制 thinking 模式与 `reasoning_content` 的打印。三版的 `max_tokens = 8192` 是思考与回答共用的预算；完整 message 保留进历史，用于工具后续调用。开课前核对新录制的开关设置，使用旧轨迹时注明旧模式和源码。
+6. 仅 v0 设置 `TOKEN_STEPS = 12`、`TEMPERATURE = 0`，备课时试改温度为 0.8，课堂比较后恢复 0；v1—v5 不传 temperature，使用 API 默认值。v2—v4 固定关闭 thinking；v3/v4 没有思考开关和打印，`max_tokens` 分别为 500、1600。仅 v5 顶部的 `THINKING = True` 控制 thinking 模式与 `reasoning_content` 打印，8192 token 由思考与回答共用；完整 message 保留进历史，用于后续调用。开课前核对新录制的开关设置，使用旧轨迹时注明旧模式和源码。
 7. 离线轨迹明确标记 REPLAY，只展示已发生的 stdout，不执行命令或生成文件。若实时请求超过约 10 秒仍无可讲结果，说明切换网页备份，保证课堂节奏。
 
 | 时间 | 课堂重点 | 文件 | 只要求学生看清的变化 |
@@ -177,9 +177,9 @@ python agent_v2.py
 
 “Schema 是给模型看的说明，不是函数实现。模型写出函数名，不会自动在电脑上执行。这个教学计算器直接用 `eval(expression)` 求值，幂运算使用 Python 的 `**`，代码就在这里。”
 
-指出顶部 `THINKING = True`：“v3—v5 开启 thinking 时，会打印 DeepSeek API 返回的 reasoning_content。开关设为 False 时，请求禁用 thinking，也不打印思考文本。程序仍是非流式调用，等响应完整返回后才打印 `思考：` 和这段文本。8192 个 token 是思考与最终回答共用的预算。”
+“v3 和 v4 固定关闭 thinking，课堂先只看工具请求、执行与反馈；这两版没有思考开关，也不打印思考文本。”
 
-定位 `messages.append(message)`：“返回的 message 对象完整加入历史，保留 reasoning_content，后续工具调用继续带上它。”
+定位消息进入历史的位置：“返回的 assistant 消息和后续工具结果一起保留，下一次调用才能看见之前发生了什么。”
 
 **25:00—27:00，运行同一计算。**
 
@@ -191,7 +191,7 @@ python agent_v3.py
 
 输入：“请用 calculator 计算 (12345 * 6789) / (17 + 29)。”
 
-依次指出 DeepSeek API 返回的思考文本、模型 tool call、Python 调用 calculator、实际返回值，以及带对应 tool_call_id 的 tool 消息。思考文本描述的操作，须与 Tool Result 分别核对。
+依次指出模型 tool call、Python 调用 calculator、实际返回值，以及带对应 tool_call_id 的 tool 消息。
 
 “这行 Python 才产生计算结果。模型仅仅输出 `calculator(...)`，并不等于电脑已经执行它。”
 
@@ -201,7 +201,7 @@ python agent_v3.py
 LLM → Tool Call → Python Function → Tool Result → LLM
 ```
 
-“tool_call_id 对应请求与结果。结果重新交给模型，它才能解释数值意味着什么。思考文本来自 API 的 reasoning_content，Tool Call 是请求，Tool Result 才证明程序实际执行了什么。”
+“tool_call_id 对应请求与结果。结果重新交给模型，它才能解释数值意味着什么。Tool Call 是请求，Tool Result 才证明程序实际执行了什么。”
 
 **28:30—30:00，在 v3 中提出需要反馈后继续计算的任务。**
 
@@ -215,9 +215,9 @@ LLM → Tool Call → Python Function → Tool Result → LLM
 
 “这次题目明确要求：先拿到第一步工具结果，再决定下一次输入，不能把整条流程合在一次计算里。”
 
-本次 `THINKING=True` 的真实彩排中，v3 只执行第一步，得到 `A = 121932631112635269`；最终正文出现未执行的 DSML 调用，没有最终数值，应称为“未完成”，不能说算出了错误数字。
+本次关闭 thinking 的真实彩排中，v3 只执行第一步，得到 `A = 121932631112635269`；正文出现未执行的 DSML 调用，没有终值，应称为“未完成”，不能说算出了错误数字。
 
-“当前默认开启 thinking，v3 也可能在思考文本里自行算出后续结果。现场先检查终值，再数实际 Tool Result；如果数值正确，就如实说明，同时检查题目要求的后续工具步骤是否真正执行。正文或思考文本里的调用描述，不能当作执行证据。”
+“模型也可能自行算出后续结果。现场先检查终值，再数实际 Tool Result；如果数值正确，就如实说明，同时检查题目要求的后续工具步骤是否真正执行。正文里的调用描述不能当作执行证据。”
 
 ## 30:00—39:00 Stage 4：让反馈推动下一步
 
@@ -237,7 +237,7 @@ python agent_v4.py
 
 粘贴刚才完整题目，不改计算步骤或要求。圈出第一步 Tool Result，以及下一次请求中由它得到的 `B = 635269`。
 
-下表是独立整数计算的标准答案；本次 `THINKING=True` 的真实彩排中，v4 实际执行两次 calculator，结果与标准答案一致：
+下表是独立整数计算的标准答案。本次关闭 thinking 的真实彩排中，v4 实际执行两次 calculator，结果与标准答案一致：
 
 | 核对项 | 整数 |
 |---|---|
@@ -245,7 +245,7 @@ python agent_v4.py
 | B（A 的末 6 位） | 635269 |
 | B³ + 17B | 256373415452969682 |
 
-“循环使下一次决策看见上一轮真实反馈，并让后续请求得到执行。v3 和 v4 当前都开启 thinking，不预设 v3 失败；模型可能合并表达式或自行算出结果。比较的是程序是否继续处理工具请求，每次仍核对 Tool Result、步骤和最终数值。”
+“循环使下一次决策看见上一轮真实反馈，并让后续请求得到执行。v3 和 v4 当前都关闭 thinking，不预设 v3 失败；模型可能合并表达式或自行算出结果。比较的是程序是否继续处理工具请求，每次仍核对 Tool Result、步骤和最终数值。”
 
 备用的条件分支三步题、标准答案和实测记录见 [循环对照案例](loop_examples.md)。课堂主讲使用上面的两步题，保持 45 分钟安排。
 
@@ -254,6 +254,8 @@ python agent_v4.py
 “把 calculator 换成 Bash，循环结构保持一样。模型可以生成命令，Python 用 `subprocess.run` 执行，再把 stdout 和 stderr 交回模型。”
 
 定位 `run_bash(command)`、`["bash", "-c", command]` 和 `BASH_TIMEOUT = 60`。
+
+“只有 v5 保留顶部 THINKING=True 开关。开启后打印 DeepSeek API 返回的 reasoning_content，完整非流式响应返回后一次显示；关闭时不打印。8192 token 由思考与回答共用，完整 message 保留该字段用于后续调用。思考文本中的动作仍要对照实际 Tool Result。”
 
 “命令直接在启动程序的当前目录运行，文件直接写在那里。这里没有隔离工作区或导出步骤；单条命令超时为 60 秒。后续 Bash 能力也可以直接在这份文件里扩展。”
 
@@ -322,6 +324,6 @@ python agent_v5.py
 - **工具一定由模型选择吗？** 应用也可以固定流程，本课让模型发出请求。
 - **循环自动保证完成吗？** 不能；要检查实际执行与产物。
 - **REPLAY 会重建报告吗？** 不会，它只展示已保存的 stdout。
-- **思考文本从哪里来？** 来自 DeepSeek API 的 `reasoning_content`，由 THINKING 开关控制；整次非流式响应返回后显示。实际执行仍看 Tool Result。
+- **v5 的思考文本从哪里来？** 来自 DeepSeek API 的 `reasoning_content`，由 v5 的 THINKING 开关控制，完整非流式响应后显示。v2—v4 固定关闭 thinking，实际执行仍看 Tool Result。
 
 时间紧时先用真实 REPLAY，减少温度比较和问答，保留 30—39 分钟循环演示；新闻各用一句话压缩，始终讲清模型请求与程序执行的区别。

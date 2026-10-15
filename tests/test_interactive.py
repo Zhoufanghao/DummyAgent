@@ -117,8 +117,10 @@ class InteractiveTests(unittest.TestCase):
                     self.assertFalse(hasattr(module, name))
                 if version > 0:
                     self.assertFalse(hasattr(module, "TEMPERATURE"))
-                if version >= 3:
+                if version == 5:
                     self.assertTrue(module.THINKING)
+                else:
+                    self.assertFalse(hasattr(module, "THINKING"))
 
     def test_all_scripts_accept_multiple_inputs_and_skip_blanks(self):
         for version in VERSIONS:
@@ -145,9 +147,9 @@ class InteractiveTests(unittest.TestCase):
                 else:
                     self.assertNotIn("temperature", request)
                 self.assertFalse(request.get("stream", False))
-                if version == 2:
+                if version in (2, 3, 4):
                     self.assertEqual(request["extra_body"], {"thinking": {"type": "disabled"}})
-                elif version >= 3:
+                elif version == 5:
                     self.assertEqual(request["extra_body"], {"thinking": {"type": "enabled"}})
 
     def test_eof_and_ctrl_c_are_handled_by_script_footer(self):
@@ -220,10 +222,44 @@ class InteractiveTests(unittest.TestCase):
         self.assertEqual(result.requests[2]["messages"][-2], {"role": "assistant", "content": "5"})
         self.assertIn("Tool Result", result.output)
 
-    def test_thinking_switch_preserves_sdk_reasoning_and_prints_every_response_in_order(self):
+    def test_calculator_stages_disable_thinking_and_preserve_full_sdk_history(self):
         from openai.types.chat import ChatCompletionMessage
 
-        for version in (3, 4, 5):
+        for version in (3, 4):
+            with self.subTest(version=version):
+                replies = [tool_answer("fixture-first", reasoning="fixture tool reasoning")]
+                reasons = ["fixture tool reasoning"]
+                if version == 4:
+                    replies.append(tool_answer("fixture-second", reasoning="fixture next tool reasoning"))
+                    reasons.append("fixture next tool reasoning")
+                replies.extend([answer("fixture final answer", reasoning="fixture final reasoning"),
+                                answer("fixture follow-up answer", reasoning="fixture follow-up reasoning")])
+                for reply in replies:
+                    reply.choices[0].message = ChatCompletionMessage.model_validate(
+                        reply.choices[0].message.model_dump(exclude_none=True))
+                result = run_agent(version, ["执行任务", "继续解释"], replies)
+                self.assertFalse(hasattr(result.module, "THINKING"))
+                for request in result.requests:
+                    self.assertEqual(request["extra_body"], {"thinking": {"type": "disabled"}})
+                    self.assertEqual(request["max_tokens"], 500 if version == 3 else 1600)
+                    self.assertNotIn("temperature", request)
+                self.assertEqual(result.requests[1]["messages"][-1]["tool_call_id"], "fixture-first")
+                saved = [message for message in result.requests[-1]["messages"]
+                         if message["role"] == "assistant"]
+                self.assertEqual([message["reasoning_content"] for message in saved],
+                                 reasons + ["fixture final reasoning"])
+                self.assertEqual(saved[-1]["content"], "fixture final answer")
+                self.assertNotIn("思考：", result.output)
+                self.assertNotIn("reasoning", result.output)
+                self.assertIn("fixture final answer", result.output)
+                self.assertIn("fixture follow-up answer", result.output)
+                if version == 3:
+                    self.assertNotIn("tools", result.requests[1])
+
+    def test_v5_thinking_switch_preserves_sdk_reasoning_and_prints_every_response_in_order(self):
+        from openai.types.chat import ChatCompletionMessage
+
+        for version in (5,):
             for thinking in (True, False):
                 with self.subTest(version=version, thinking=thinking):
                     name = "bash" if version == 5 else "calculator"
@@ -246,6 +282,7 @@ class InteractiveTests(unittest.TestCase):
                         self.assertEqual(request["extra_body"], {
                             "thinking": {"type": "enabled" if thinking else "disabled"}})
                         self.assertNotIn("temperature", request)
+                        self.assertEqual(request["max_tokens"], 8192)
                         self.assertFalse(request.get("stream", False))
                     first_assistant = result.requests[1]["messages"][-2]
                     self.assertEqual(first_assistant["reasoning_content"], reasons[0])

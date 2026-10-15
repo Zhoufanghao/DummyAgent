@@ -4,7 +4,6 @@ import os
 from openai import OpenAI
 from prompt_toolkit import prompt
 
-THINKING = True
 CALCULATOR_TOOL = {"type": "function", "function": {
     "name": "calculator", "description": "计算算术表达式。",
     "parameters": {"type": "object", "properties": {
@@ -25,11 +24,9 @@ def main():
         messages.append({"role": "user", "content": task})
         message = client.chat.completions.create(
             model="deepseek-flash", messages=messages, tools=[CALCULATOR_TOOL],
-            max_tokens=8192,
-            extra_body={"thinking": {"type": "enabled" if THINKING else "disabled"}}).choices[0].message
+            max_tokens=500,
+            extra_body={"thinking": {"type": "disabled"}}).choices[0].message
         messages.append(message)
-        if THINKING:
-            print("思考：", message.reasoning_content)
         if message.tool_calls:
             for tool_call in message.tool_calls:
                 print("LLM → Tool Call：", tool_call.function.name, tool_call.function.arguments)
@@ -37,11 +34,9 @@ def main():
                 print("Python → Tool Result：", result)
                 messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": str(result)})
             message = client.chat.completions.create(
-                model="deepseek-flash", messages=messages, max_tokens=8192,
-                extra_body={"thinking": {"type": "enabled" if THINKING else "disabled"}}).choices[0].message
+                model="deepseek-flash", messages=messages, max_tokens=500,
+                extra_body={"thinking": {"type": "disabled"}}).choices[0].message
             messages.append(message)
-            if THINKING:
-                print("思考：", message.reasoning_content)
         print("助手：", message.content)
 
 if __name__ == "__main__":

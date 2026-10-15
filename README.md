@@ -31,7 +31,7 @@ python agent_v0.py
 
 只有 v0 设置 `TEMPERATURE = 0`，并生成 `TOKEN_STEPS = 12` 个 token；比较温度时修改 `agent_v0.py` 顶部常量为 0.8，之后恢复 0。v1—v5 不传 temperature，使用 API 默认值。单次 API 超时 45 秒，最多重试 1 次。
 
-v2 关闭 thinking；v3—v5 在文件顶部用 `THINKING = True` 控制 thinking 模式和思考文本展示。开启时打印 DeepSeek API 返回的 `reasoning_content`，关闭时禁用 thinking 并停止打印该字段。SDK 使用非流式请求，思考文本在整次响应返回后一次展示，不是实时逐字流。这三版的 `max_tokens = 8192` 由思考文本与最终回答共用；返回的 message 直接加入 messages，完整保留 `reasoning_content` 供工具后续调用。实际工具执行仍以 Tool Result 为证据。
+v2—v4 固定关闭 thinking；v3/v4 没有思考开关，也不打印 reasoning_content，`max_tokens` 分别为 500、1600。只有 v5 顶部保留 `THINKING = True`，控制 thinking 模式与 DeepSeek API 返回的 `reasoning_content` 展示。v5 使用非流式请求，完整响应后一次展示思考文本；`max_tokens = 8192` 由思考与回答共用，完整 message 保留进历史供后续调用。实际工具执行仍以 Tool Result 为证据。
 
 ## v3 与 v4 的同题对照
 
@@ -43,7 +43,7 @@ v2 关闭 thinking；v3—v5 在文件顶部用 `THINKING = True` 控制 thinkin
 每次只请求当前一步的计算，必须等工具返回后再进行下一步，不要把整条流程合成一个表达式。
 ```
 
-标准答案为 A = `121932631112635269`、B = `635269`、最终整数 = `256373415452969682`。本次 `THINKING=True` 的真实彩排中，v3 只执行第一步，随后输出未执行的 DSML 调用文本，没有给出最终数值；v4 实际执行两次 calculator 并得到正确终值。其他运行中 v3 也可能自行算出终值；课堂按新录制中的实际 Tool Result、步骤和最终数值判读，不预设 v3 失败。更多题面、标准答案及判读方法见 [循环对照案例](docs/loop_examples.md)。
+标准答案为 A = `121932631112635269`、B = `635269`、最终整数 = `256373415452969682`。本次关闭 thinking 的真实彩排中，v3 只执行第一步，随后输出未执行的 DSML 调用文本，没有最终数值；v4 实际执行两次 calculator 并得到正确终值。模型也可能自行算出终值，不预设 v3 失败，课堂以实际 Tool Result、步骤和最终数值判读。更多题面、标准答案及判读方法见 [循环对照案例](docs/loop_examples.md)。
 
 ## Bash 文件任务
 

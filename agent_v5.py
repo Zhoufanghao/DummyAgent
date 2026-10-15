@@ -6,7 +6,6 @@ from openai import OpenAI
 from prompt_toolkit import prompt
 
 THINKING = True
-BASH_TIMEOUT = 60
 SYSTEM_PROMPT = "使用 bash 完成当前目录中的任务，中文回复。"
 
 BASH_TOOL = {"type": "function", "function": {
@@ -20,7 +19,7 @@ def run_bash(command):
         result = subprocess.run(
             ["bash", "-c", command], stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, errors="replace", timeout=BASH_TIMEOUT)
+            text=True, errors="replace", timeout=60)
         output = f"exit_code: {result.returncode}\n{result.stdout}"
     except subprocess.TimeoutExpired:
         output = "命令超时。"

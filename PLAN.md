@@ -15,13 +15,13 @@
 
 直接 `python agent_vN.py`，无需切换版本。每份程序自带所需代码，不导入公共本地运行模块。v3/v4 用 `eval(expression)` 计算；v5 只保留 Bash，不带早期版本入口。另行开发的新 v5 本轮不纳入。
 
-统一用 prompt_toolkit 提供 `$ ` 提示，多行粘贴后按 Enter 整段提交，空白输入跳过；Ctrl+D、Ctrl+C 结束。密钥来自环境，模型在每个SDK调用中直接写 `deepseek-flash`。仅v0设置顶部 `TEMPERATURE = 0` 供调节，其余版本不传temperature。SDK非流式，v2关闭thinking，v3—v5顶部 `THINKING = True` 同时控制思考模式与API思考文本展示；每次完整响应后显示，思考与回答共用8192 token预算。API 45秒超时、1次重试。程序末尾仅处理EOF和中断；不设置命令行参数、密钥预查或通用错误包装。
+统一用 prompt_toolkit 提供 `$ ` 提示，多行粘贴后按 Enter 整段提交，空白输入跳过；Ctrl+D、Ctrl+C 结束。密钥来自环境，模型在每个SDK调用中直接写 `deepseek-flash`。仅v0设置顶部 `TEMPERATURE = 0` 供调节，其余版本不传temperature。SDK非流式，v2—v4固定关闭thinking；v3/v4没有思考开关或reasoning_content打印，max_tokens分别为500、1600。仅v5顶部 `THINKING = True` 控制思考模式与API思考文本展示，完整响应后一次显示，思考与回答共用8192 token预算。API 45秒超时、1次重试。程序末尾仅处理EOF和中断；不设置命令行参数、密钥预查或通用错误包装。
 
 ## 工具和循环
 
 - v3 每个用户轮做一轮工具请求，执行并回填后回答；不进入持续工具循环。
 - v4/v5 使用 `while True`，没有轮数上限；工具结果进入历史，模型可以继续请求工具或给出最终回答。
-- v3—v5将完整SDK assistant消息保留进历史，包括reasoning_content，供工具后续调用与下一用户轮使用。
+- 工具版本保留完整SDK assistant消息供后续调用；v3/v4关闭thinking且不展示reasoning_content，v5开启时完整保留该字段。
 - v5 的 `run_bash(command)` 直接调用 `subprocess.run(["bash", "-c", command], ...)`，当前目录执行、60 秒超时，stdout 与 stderr 作为结果返回。
 - 文件直接保存在当前目录；不配置沙箱、白名单、临时工作区、产物导出、自动虚拟环境或网络代理。原隔离说明归档至 `docs/archive/sandbox-isolated.md`。
 

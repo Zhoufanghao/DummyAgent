@@ -4,7 +4,6 @@ import os
 from openai import OpenAI
 from prompt_toolkit import prompt
 
-THINKING = True
 CALCULATOR_TOOL = {"type": "function", "function": {
     "name": "calculator", "description": "计算算术表达式。",
     "parameters": {"type": "object", "properties": {
@@ -26,11 +25,9 @@ def main():
         while True:
             message = client.chat.completions.create(
                 model="deepseek-flash", messages=messages, tools=[CALCULATOR_TOOL],
-                max_tokens=8192,
-                extra_body={"thinking": {"type": "enabled" if THINKING else "disabled"}}).choices[0].message
+                max_tokens=1600,
+                extra_body={"thinking": {"type": "disabled"}}).choices[0].message
             messages.append(message)
-            if THINKING:
-                print("思考：", message.reasoning_content)
             if not message.tool_calls:
                 print("助手：", message.content)
                 break
