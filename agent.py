@@ -1,4 +1,4 @@
-"""v1：应用保存文本 history，每轮重新提交完整对话。"""
+"""v2：用 system/user/assistant messages 表示多轮对话。"""
 import os
 import sys
 
@@ -7,7 +7,7 @@ TEMPERATURE = 0
 
 
 def main(client):
-    history = "请续写下面的中文对话，只回答最后一个问题；不知道的信息请说不知道。\n"
+    messages = [{"role": "system", "content": "你是简洁的中文实验助手。不知道的信息请说不知道。"}]
     while True:
         try:
             question = input("$ ")
@@ -16,17 +16,17 @@ def main(client):
             return
         if not question.strip():
             continue
-        history += f"用户：{question}\n助手："
-        print(f"提交给API的文本：{history!r}")
-        response = client.completions.create(
-            model=MODEL, prompt=history, max_tokens=120,
-            temperature=TEMPERATURE, stop=["\n用户："])
+        messages.append({"role": "user", "content": question})
+        print(f"Messages → {messages}")
+        response = client.chat.completions.create(
+            model=MODEL, messages=messages, temperature=TEMPERATURE, max_tokens=500,
+            extra_body={"thinking": {"type": "disabled"}})
         choice = response.choices[0]
         if choice.finish_reason != "stop":
             raise RuntimeError("回复被截断或异常停止")
-        answer = choice.text.strip()
+        answer = choice.message.content or ""
         print(f"助手：{answer}")
-        history += answer + "\n"
+        messages.append({"role": "assistant", "content": answer})
 
 
 def cli():
