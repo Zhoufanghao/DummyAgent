@@ -1,8 +1,10 @@
 # v3 / v4：同题展示反馈循环
 
-在两个终端分别运行 `python agent_v3.py` 和 `python agent_v4.py`，输入相同题面。先按项目 requirements 安装 OpenAI SDK 与 `prompt_toolkit`；输入提示为 `$ `。在支持 bracketed paste 的终端中，整段粘贴含换行题面，粘贴后按一次 Enter 提交，换行会保留在同一条输入中。空白输入跳过，Ctrl+D 或 Ctrl+C 结束。题目要求逐步调用，让后续计算使用刚返回的结果。两版 calculator 完全相同，直接使用 `eval(expression)`，幂运算写 Python 的 `**`；区别在于 v3 回填一次后直接回答，v4 继续给模型调用工具的机会。
+分别启动 `python agent_v3.py` 和 `python agent_v4.py`，在新会话中输入相同题面。支持 bracketed paste 的终端可整段粘贴，按一次 Enter 提交；Ctrl+D 或 Ctrl+C 结束。
 
-两版均在API请求中固定关闭thinking，不设开关，也不打印思考文本。模型在调用中直接写为 `deepseek-flash`，不传temperature。
+两版都直接用 `eval(expression)` 计算，乘方写 `**`；都固定请求 `deepseek-flash`、关闭 thinking、不传 temperature。区别是 v3 只处理首个响应中的一轮工具请求，该轮可以有多个调用；执行并回填后，不带 tools 再请求一次回答。v4 每次回填后仍带 tools 请求模型，直到没有新的工具请求。
+
+大数字本身不要求循环，一次 calculator 也能计算完整表达式。这两题明确要求逐步操作：下一步使用刚返回的结果，再提出新的计算请求。课堂比较的是反馈后能否继续执行，以及最终数值是否正确。
 
 ## 主案例：取末六位，再计算
 
@@ -30,12 +32,24 @@
 | A 为偶数，B = A × 76543 + 123457 | 74664715755867506515147 |
 | B % 1000000007 | 499882649 |
 
-## 本次实测与课堂判读
+## 当前录制与课堂判读
 
-2026-10-15 使用 `deepseek-flash` 真实重新运行两份程序，均固定关闭thinking，未设置temperature。v3 两题都只产生第一步的 `Python → Tool Result`，后续调用出现在助手正文中，没有执行，也没有给出最终数值；v4 分别实际执行两次、三次 calculator 调用，最终结果均与独立整数计算一致。两版均不输出思考文本，工具反馈后和下一用户轮正常继续。
+当前 `recordings/v3.json`、`recordings/v4.json` 来自北京时间 2026-10-15 23:24 的真实彩排。v3 两题各只实际执行第一步，随后把下一次调用写成带 DSML 标记的正文，没有终值；v4 分别实际执行两次、三次 calculator，得到上述标准答案。两版均关闭 thinking，没有思考文本输出。
 
-真实输入、时间、原始终端输出及源码 SHA 保存在 `recordings/v3.json`、`recordings/v4.json`；可用 `python verify_live.py --stage v3 --stage v4 --output-dir /tmp/loop-rehearsal` 重新彩排。网页展示这两份录制，不运行历史输出中的命令。
+录制保存了真实输入、UTC 时间、原始终端输出和源码 SHA。网页只回放这些内容，不执行正文里的调用。重新彩排可写入新的目录：
 
-课堂上先检查最终数值，再圈出每条真实的 `Python → Tool Result`。思考文本、助手正文里的函数名、DSML 标记或“接下来调用”都不能充当执行证据。本次 v3 的结果应称为“任务未完成”，没有错误数值可供判断。
+```bash
+rehearsal_dir=$(mktemp -d)
+python verify_live.py --stage v3 --stage v4 --output-dir "$rehearsal_dir"
+```
 
-这些是多步操作练习，逐步约束直接写在题面中。当前 calculator 可以接受完整 Python 表达式，模型也可能合并运算或自行算对；出现这种情况，应如实记为完成。固定数学题不能保证 v3 每次失败，v4 的循环也不保证每次成功；现场以实际输出为准。
+课堂上先检查最终数值，再圈出每条实际的 `Python → Tool Result`。正文里的函数名、DSML 标记或“接下来调用”不等于已执行。按两个维度判读：
+
+| 观察结果 | 课堂结论 |
+|---|---|
+| 终值正确，逐步工具请求也实际执行 | 完成任务 |
+| 终值正确，但合并或跳过了指定工具步骤 | 数值正确，未按题目要求逐步执行 |
+| 没有给出终值 | 未完成；当前 v3 录制属于此类 |
+| 给出的终值与独立计算不符 | 数值错误 |
+
+模型可能合并表达式或自行算出正确数值，应如实说明。固定数学题不能保证 v3 每次失败，v4 的循环也不保证每次成功；现场以实际输出为准。

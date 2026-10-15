@@ -1,6 +1,6 @@
 # 教学来源与事实边界
 
-核查日期：2026-10-15（北京时间）。只采用官方文档、官方发布文章与模型发布者的文件。新闻作为有日期的历史案例使用，不把发布时的功能、套餐或默认设置说成今天所有版本的情况。
+teach 文档核对日期：2026-10-16（北京时间）。Completion 与思考模式说明本次按官方文档复核；新闻、模型别名和公开模板沿用 2026-10-15 的既往核查记录。只采用官方文档、官方发布文章与模型发布者的文件。新闻作为有日期的历史案例使用，不把发布时的功能、套餐或默认设置说成今天所有版本的情况。
 
 ## 课堂使用的三个案例
 
@@ -14,18 +14,19 @@
 
 ## API 与实现依据
 
-**当前默认模型核验**：2026-10-15 查阅 [DeepSeek 官方更新](https://api-docs.deepseek.com/updates/) 中 2026-09-10 的发布记录，`deepseek-flash` 对应 DeepSeek-V4.1-Flash。本项目实时调用默认采用该 API ID。它是可变别名，不是固定 checkpoint；开课前重新核查；本轮程序转录记录请求模型，不将它当作服务端返回模型。下文 V3 模板是有意固定的历史教学对照，不用于断言 V4.1 的内部格式。
+**课堂请求模型**：六份脚本均直接写 `model="deepseek-flash"`，不从环境覆盖。2026-10-15 查阅 [DeepSeek 官方更新](https://api-docs.deepseek.com/updates/) 时，既往核查记录将该别名对应到 DeepSeek-V4.1-Flash；这不是本次对别名映射的重新核验，也不是固定 checkpoint。本项目录制只记录请求 ID，不能用它证明服务端返回了哪个版本。下文 V3 模板是固定的历史教学对照。
 
 - [DeepSeek: Your First API Call](https://api-docs.deepseek.com/)：OpenAI SDK 可通过配置 DeepSeek 的 `base_url` 与密钥访问 DeepSeek。SDK 名称不决定实际模型提供方。
-- [DeepSeek: FIM Completion API (Beta)](https://api-docs.deepseek.com/api/create-completion/)：本课 Stage 0 使用 `/completions` 与 Beta 地址；`logprobs` 返回采样 token 与候选项的对数概率。只传前缀、不传 `suffix` 时用于续写展示。Completion接口形式不意味着调用了未经指令训练的基础模型；本课仍使用当前Flash模型。模型名与能力必须在备课时重新验证，不能永久依赖某个别名。
+- [DeepSeek: FIM Completion API (Beta)](https://api-docs.deepseek.com/api/create-completion/)：v0/v1 使用 `/completions` 与 Beta 地址；v0 额外请求 `logprobs`，获取采样 token 与候选项的对数概率。`max_tokens` 是生成上限，不保证恰好生成该数量。只传前缀、不传 `suffix` 时用于续写展示；Completion 接口形式不意味着调用了未经指令训练的基础模型。
 - [DeepSeek: Chat Completions API](https://api-docs.deepseek.com/api/create-chat-completion/)：核对 messages、roles、tools、tool_calls、tool_call_id 等字段。工具调用返回的是待执行请求，执行与结果回填由客户端完成。
+- [DeepSeek: Thinking Mode](https://api-docs.deepseek.com/guides/thinking_mode/)：v2—v4 显式传 disabled，只有 v5 用顶部 THINKING 开关控制 enabled/disabled。v5 展示的是 API 返回的 reasoning_content，完整 assistant 消息继续回传，以满足工具后续请求的字段要求；这是非流式调用，显示发生在完整响应返回后。
 - [MCP specification, revision 2025-06-18: Tools](https://modelcontextprotocol.io/specification/2025-06-18/server/tools)：工具描述、列举与调用协议，以及参数验证、访问控制、超时与使用记录。此链接固定到一个规范版本，不声称它是永久的最新版本。
 
 `exp(logprob)` 是对 API 返回值的直接转换。top-k 候选只覆盖词表的一部分，显示项概率通常不加总为 100%；不得将这几个候选重新归一化后标成 API 原始概率。服务端没有在这些文档中完整说明所有采样内部细节，不声称返回值必然是温度变换前或后的整词表分布。
 
-Temperature 用于说明采样分布的尖锐或平缓；较低温度并不保证跨请求、跨版本逐字一致，也不保证事实或计算正确。当前 Chat 文档还规定某些采样参数在 thinking 模式中不生效，备课应采用已经实测的非思考调用配置。
+Temperature 用于说明采样分布的尖锐或平缓；较低温度并不保证跨请求、跨版本逐字一致，也不保证事实或计算正确。teach 仅在 v0 显式设置温度供比较，其余版本不传该参数；不要把 v0 的温度演示推广成 v5 思考模式的采样实验。
 
-本项目真实 Completion 测试中，`temperature=0` 可出现所选 token 的 `logprob=0`、其他项 `-9999` 的退化显示；`-9999` 按 API 哨兵值呈现，不渲染成精确的 0% 或当作未调整的原始模型概率。课堂正常候选列表优先展示已验证的 `temperature=0.8` 记录，0 的返回作为采样配置与接口语义的对照。
+当前 `recordings/v0.json` 来自 `TEMPERATURE = 0` 的真实 Completion，出现了所选 token 的 `logprob=0`、其他项 `-9999` 的显示。程序将候选中的 `-9999` 显示为“低于API显示范围”，不能据此宣称拿到了未调整的完整模型分布。当前目录没有温度 0.8 的录制；需要比较时，修改 v0 顶部温度并实际运行，课后恢复默认值。
 
 ## 唯一用于课堂的公开 Chat Template
 
@@ -59,4 +60,4 @@ API 的 `messages` 是应用层协议；服务端可能采用不同的模板、�
 - **示意**：讲义中的结构示例、伪代码或可能路径；不能冒充 API 输出。
 - **本地确定性检查**：固定 CSV 的统计、算式执行和 Bash 退出码，可独立运行验证。它们不证明 LLM 每次会采用同一行动路径。
 
-课堂可见的 action/tool/result 日志是应用公开记录的行为证据，不是模型隐藏推理链。不要将其标题写成“完整思考过程”。
+课堂区分三类输出：API 返回的思考文本（仅 v5 开启时）、结构化工具请求、实际执行结果。它们分别说明不同事情；思考文本和调用描述不能代替工具执行与文件产物证据。

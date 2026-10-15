@@ -1,16 +1,16 @@
 [
   {
-    "title": "Stage 0 · 文字接龙",
+    "title": "Stage 0 · 独立续写",
     "ability": "查看模型如何逐个生成 Token，以及 API 返回的候选概率。",
     "why": "先把大段回答拆成可观察的生成步骤，建立对上下文与采样的直觉。",
-    "can_do": "自由输入文本前缀，展示真实 logprobs、候选 Token 和最终文本；顶部 TEMPERATURE 可比较 0 与 0.8，每个前缀相互独立。",
+    "can_do": "自由输入前缀；一次非流式响应返回后，逐位置展示上下文、真实 logprobs 和候选概率，每个前缀相互独立。",
     "focus": "Pr[token | context]：上下文 → 下一个 Token → 更新上下文",
     "minutes": "04—11 分钟",
     "id": "v0",
     "file": "agent_v0.py"
   },
   {
-    "title": "Stage 1 · 对话历史",
+    "title": "Stage 1 · 文本 history",
     "ability": "用应用程序维护的 history 保存并重新提交对话。",
     "why": "两次独立调用不会自动共享此前的实验编号。",
     "can_do": "自由进行多轮文本对话，观察应用如何保存并重新提交此前的提问和回答。",
@@ -20,7 +20,7 @@
     "file": "agent_v1.py"
   },
   {
-    "title": "Stage 2 · 结构化消息",
+    "title": "Stage 2 · messages",
     "ability": "把文本历史改为 system / user / assistant 消息。",
     "why": "需要明确区分消息身份，避免手工拼接的边界含糊。",
     "can_do": "自由进行角色对话，观察结构化消息；本阶段关闭 thinking，公开 Chat Template 作为独立辅助演示。",
@@ -30,20 +30,20 @@
     "file": "agent_v2.py"
   },
   {
-    "title": "Stage 3 · 工具调用",
+    "title": "Stage 3 · 一次工具请求与回填",
     "ability": "让模型请求调用由 Python 实现的计算工具。",
     "why": "需要把数值计算交给可靠的外部程序执行。",
-    "can_do": "固定关闭 thinking；同题跨 v4 比较一次工具回填后的行为，分别核对 Tool Result、步骤与最终数值，不预设 v3 失败。",
+    "can_do": "固定关闭 thinking。首个响应可以有多个工具调用，逐个执行并回填后，再请求一次不带 tools 的回答；与 v4 使用同题比较。",
     "focus": "模型请求工具 → Python 执行 → 结果回填",
     "minutes": "22—30 分钟",
     "id": "v3",
     "file": "agent_v3.py"
   },
   {
-    "title": "Stage 4 · Agent 循环",
+    "title": "Stage 4 · 持续反馈循环",
     "ability": "把工具结果重新加入上下文，让模型继续决定下一步。",
     "why": "多步骤任务需要反复观察执行反馈，并据此继续行动。",
-    "can_do": "固定关闭 thinking；重做 v3 同题，观察循环如何继续处理工具请求，实际执行与最终数值分别核验。",
+    "can_do": "固定关闭 thinking。每次工具结果回填后继续带 tools 请求模型，直到没有新工具请求；核对实际执行与最终数值。",
     "focus": "调用 → 执行 → 反馈 → 再次调用",
     "minutes": "30—39 分钟 · 前半",
     "id": "v4",
