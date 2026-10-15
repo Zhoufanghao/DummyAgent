@@ -20,7 +20,7 @@
 | 9 | 22:00—25:00 | Calculator 工具说明 | 同一复杂算式；工具名称和 expression；内联 calculator | 先在 `agent_v2.py` 看纯文本回答，再打开 v3 Schema。指出直接 `eval(expression)` 的计算位置，幂运算用 Python 的 `**` | Schema 是说明书；函数实现就在本文件 |
 | 10 | 25:00—30:00 | 一次工具调用的边界 | `LLM → Tool Call → Python → Tool Result → LLM` | 先完成简单计算；28:30 在新 v3 会话输入两步题，查看实际 Tool Result 和终值 | v3 固定关闭 thinking，无思考打印；不预设失败；[Chat API tools 字段](https://api-docs.deepseek.com/api/create-chat-completion/) |
 | 11 | 30:00—33:30 | 同一题，加入 Agent Loop | v4 的 while True；同题实际工具轨迹；标准终值 256373415452969682 | 圈出回填后分支差异，再在新 v4 会话粘贴同题。两版均关闭 thinking，核对实际执行、A、B 和终值 | 本次 v4 实际执行两次 calculator；也可能自行心算，步骤执行仍看 Tool Result |
-| 12 | 33:30—34:50 | Bash 执行 | v5 的工具 Schema、run_bash、subprocess 调用、BASH_TIMEOUT | calculator 换成 Bash，循环保持；`["bash", "-c", command]` 直接执行，stdout/stderr 回填 | 当前目录执行、单命令 60 秒；不包含旧版隔离与导出机制 |
+| 12 | 33:30—34:50 | Bash 执行 | v5 的工具 Schema、run_bash、subprocess 调用、timeout=60 | calculator 换成 Bash，循环保持；`["bash", "-c", command]` 直接执行，stdout/stderr 回填 | 当前目录执行、单命令 60 秒；不包含旧版隔离与导出机制 |
 | 13 | 34:50—39:00 | 再做温度报告 | 读到数据、算出结果、写入文件的实际证据 | 运行 `agent_v5.py` 输入开场任务，查看当前目录报告；按真实错误与反馈讲修正 | 教师独立核对 10 行、平均 24.5、最大 29、最小 20 ℃；无固定验收分支 |
 | 14 | 39:00—41:20 | Coding Agent 与 MCP | 2025-05-16 Codex 研究预览；2024-11-25 MCP 开源发布 | Codex 对应代码与测试反馈循环；MCP 对应统一工具接入，循环仍由应用实现 | [Codex 原始发布](https://openai.com/index/introducing-codex/)只作历史案例；[MCP 原始发布](https://www.anthropic.com/news/model-context-protocol) |
 | 15 | 41:20—43:00 | Prompt Injection 与信任边界 | 2025-11-24；外部内容 → 上下文 → 工具请求 | 说明外部内容可能改变任务方向，用自拟 CSV 短句说明；不执行攻击 | [官方防护进展](https://www.anthropic.com/news/prompt-injection-defenses)；原文邮件场景是假设，不是真实事故披露 |

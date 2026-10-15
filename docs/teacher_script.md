@@ -253,7 +253,7 @@ python agent_v4.py
 
 “把 calculator 换成 Bash，循环结构保持一样。模型可以生成命令，Python 用 `subprocess.run` 执行，再把 stdout 和 stderr 交回模型。”
 
-定位 `run_bash(command)`、`["bash", "-c", command]` 和 `BASH_TIMEOUT = 60`。
+定位 `run_bash(command)`、`["bash", "-c", command]` 和 `timeout=60`。
 
 “只有 v5 保留顶部 THINKING=True 开关。开启后打印 DeepSeek API 返回的 reasoning_content，完整非流式响应返回后一次显示；关闭时不打印。8192 token 由思考与回答共用，完整 message 保留该字段用于后续调用。思考文本中的动作仍要对照实际 Tool Result。”
 

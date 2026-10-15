@@ -3,6 +3,7 @@ import contextlib
 import io
 from pathlib import Path
 import shlex
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -44,7 +45,14 @@ class BashTests(unittest.TestCase):
 
     def test_timeout_is_a_tool_observation(self):
         command = f"exec {shlex.quote(sys.executable)} -c 'import time; time.sleep(2)'"
-        with tempfile.TemporaryDirectory() as folder, patch.object(agent_v5, "BASH_TIMEOUT", 0.05):
+        run = subprocess.run
+
+        def run_with_short_timeout(*args, **kwargs):
+            self.assertEqual(kwargs["timeout"], 60)
+            return run(*args, **{**kwargs, "timeout": 0.05})
+
+        with tempfile.TemporaryDirectory() as folder, \
+                patch.object(agent_v5.subprocess, "run", side_effect=run_with_short_timeout):
             self.assertEqual(self.run_in_directory(command, folder), "命令超时。")
 
     def test_non_utf8_output_is_readable(self):

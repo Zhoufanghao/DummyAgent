@@ -4,6 +4,24 @@
 
 所有 SDK 调用直接使用 `model="deepseek-flash"`，对应的模型别名为 **DeepSeek-V4.1-Flash**。2026-10-15 核查的[官方更新](https://api-docs.deepseek.com/updates/)记录了这一别名映射；开课前须重新核对。公开 V3 仅用于历史 Chat Template 对照。
 
+## 文件分工
+
+`teach` 分支保留 37 个与当前课堂直接相关的文件：
+
+| 文件 | 用途 |
+|---|---|
+| `agent_v0.py`—`agent_v5.py` | 六阶段独立课堂程序 |
+| `data/` | 温度 CSV、公开 V3 模板原文 |
+| `docs/` | 讲稿、大纲、来源、循环案例、Bash 说明 |
+| `recordings/v0.json`—`recordings/v5.json` | 与当前源码匹配的六份真实录制 |
+| `build_viewer.py`、`web/stages.json` | 构建六阶段源码、差异与回放网页 |
+| `chat_template_demo.py`、`preflight.py`、`verify_live.py` | 模板演示、离线预检、真实彩排 |
+| `tests/` | 教学行为及教师工具回归 |
+| `requirements.txt`、`requirements-lock.txt` | 依赖范围与固定版本 |
+| `README.md`、`VALIDATION.md`、`.gitignore` | 使用说明、验证证据与生成文件忽略规则 |
+
+旧归档、旧运行示例和实施计划已移出当前文件树，原文仍可从 Git 历史查阅。运行环境 `.venv/` 留在本地，不纳入版本控制。
+
 ## 启动
 
 在包含 `agent_v0.py`—`agent_v5.py` 的本项目目录运行。需要 Python **3.12+**；执行阶段需要 Bash。依赖可在教师已经配置好的 Python 环境中安装：
@@ -53,7 +71,7 @@ v2—v4 固定关闭 thinking；v3/v4 没有思考开关，也不打印 reasonin
 读取 data/temperature.csv，计算温度平均值、最大值和最小值，保存 report.md。先检查数据，再生成 analysis.py 并执行，最后重新读取检查文件。
 ```
 
-Bash 直接在程序启动目录运行，`run_bash(command)` 用 `subprocess.run(["bash", "-c", command], ...)` 执行命令，stdout 与 stderr 回填到模型，单次命令超时 60 秒。生成文件直接留在当前目录，无临时工作区或退出导出步骤。具体方式见 [Bash 执行说明](docs/sandbox.md)。另行开发的新 v5 本轮尚未纳入。
+Bash 直接在程序启动目录运行，`run_bash(command)` 用 `subprocess.run(["bash", "-c", command], ...)` 执行命令，stdout 与 stderr 回填到模型，单次命令超时 60 秒。生成文件直接留在当前目录，无临时工作区或退出导出步骤。具体方式见 [Bash 执行说明](docs/bash.md)。
 
 固定 CSV 的独立基准为 **10 行、平均 24.5°C、最大 29°C、最小 20°C**。统计核对由教师脚本和测试完成，Agent 不含固定答案或内置报告验收分支。
 
@@ -71,7 +89,7 @@ python verify_live.py
 
 独立教师脚本运行六份实际程序，保存 `recordings/v0.json`—`recordings/v5.json`。新记录的类型为 `live-program-recording`，包含实际程序输出转录（stdout/stderr 合并）、`source_file` 和 `source_sha256`；它不捕获完整 SDK 请求与响应。页面只展示已知的请求模型，不编造 API 返回模型。彩排输入保存在独立的 `inputs` 列表，网页单列展示；终端库自身的输入回显按原样保留，不由教师脚本补写。源码变化后应重新验证并录制。
 
-轨迹明确标记 **REPLAY**，只展示已经发生的运行，不调用 API、不执行历史命令、不重新生成文件。网络失败不会自动切换。现场需要报告时，打开彩排保留的文件或已核实的 [examples/final-report.md](examples/final-report.md)。旧录制与既有 Git 标签只用于追溯，不参与当前课堂运行与网页构建。
+轨迹明确标记 **REPLAY**，只展示已经发生的运行，不调用 API、不执行历史命令、不重新生成文件。网络失败时可手工展示已有真实回放；需要实际报告文件时，在终端重新运行 v5 任务。旧版本只在 Git 历史和既有标签中保留，不参与当前课堂运行与网页构建。
 
 ## 教师入口与验证
 
@@ -85,6 +103,6 @@ python preflight.py
 python -m unittest discover -s tests -v
 ```
 
-预检、录制和网页构建是独立教师工具，课堂程序不导入它们。测试数据不充当真实运行证据；具体验证结果见 [VALIDATION.md](VALIDATION.md)。原隔离版说明保存在 [历史文档](docs/archive/sandbox-isolated.md)。
+预检、录制和网页构建是独立教师工具，课堂程序不导入它们。测试数据不充当真实运行证据；具体验证结果见 [VALIDATION.md](VALIDATION.md)。
 
 讲稿中的教学 Stage 5 是新闻案例；代码 v5 是 Bash 执行，放在 30—39 分钟内。

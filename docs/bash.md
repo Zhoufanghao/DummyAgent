@@ -5,7 +5,7 @@
 ```python
 subprocess.run(["bash", "-c", command], stdin=subprocess.DEVNULL,
                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-               text=True, errors="replace", timeout=BASH_TIMEOUT)
+               text=True, errors="replace", timeout=60)
 ```
 
 `run_bash(command)` 将 stdout 与 stderr 一起作为工具结果交回模型；单次命令超时为 60 秒。模型看见结果后，在同一个 `while True` 循环里继续请求工具或给出最终回答。代码不设置循环轮数上限。
@@ -24,6 +24,4 @@ python agent_v5.py
 
 Bash 工具没有额外的沙箱、命令或文件白名单，也不准备临时实验目录、执行产物导出、自动创建虚拟环境或配置网络代理。执行行为与从启动目录运行相应 Bash 命令一致。
 
-课堂只需定位本文件中的工具 Schema、`run_bash`、工具结果回填和循环。后续 Bash 功能可直接在这几个位置扩展；另行开发的新 v5 本轮尚未纳入。
-
-原隔离版的设计和验证记录完整保留在 [历史隔离执行说明](archive/sandbox-isolated.md)，仅用于追溯，不代表当前文件具有那些限制。
+课堂只需定位 `agent_v5.py` 中的工具 Schema、`run_bash`、工具结果回填和循环。后续 Bash 功能可直接在这几个位置扩展。

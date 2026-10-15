@@ -1,6 +1,6 @@
 # 单快照教学重构验证记录
 
-日期：2026-10-15（Asia/Shanghai）。上一轮 Tag 版记录见 `docs/archive/VALIDATION-tagged-stages.md`，原隔离方案见 `docs/archive/sandbox-isolated.md`。
+v0—v4功能彩排日期：2026-10-15；v5重新彩排、文件清理与回归检查日期：2026-10-16（Asia/Shanghai）。历史版本可从清理前提交 `7cd802d` 查阅。
 
 ## 六份独立脚本
 
@@ -11,9 +11,9 @@
 | agent_v2.py | 28 | system/user/assistant messages |
 | agent_v3.py | 46 | calculator、一次工具执行与回填后回答 |
 | agent_v4.py | 44 | calculator、连续工具反馈循环 |
-| agent_v5.py | 60 | Bash 执行、命令结果反馈循环 |
+| agent_v5.py | 59 | Bash 执行、命令结果反馈循环 |
 
-六份代码共242行，处于同一快照，均只依赖标准库、OpenAI SDK 和提供交互输入的 prompt_toolkit。工具直接内联，不导入其他课堂文件或教师工具；旧 `agent.py`、`tools.py` 已删除。
+六份代码共241行，处于同一快照，均只依赖标准库、OpenAI SDK 和提供交互输入的 prompt_toolkit。工具直接内联，不导入其他课堂文件或教师工具；旧 `agent.py`、`tools.py` 已删除。
 
 运行入口直接为 `main()`，仅在文件末尾处理 EOF/Ctrl-C；Bash 另处理命令超时。没有 CLI、密钥预检查、通用错误包装、finish_reason 检查、工具数量限制或恢复分支。v3/v4 恢复直接 `eval(expression)`，不做数学符号转换；乘方使用 Python 的 `**`。v4/v5 无固定循环次数上限。所有SDK调用直接写 `model="deepseek-flash"`，没有MODEL常量或模型环境覆盖。仅v0保留 `TEMPERATURE = 0` 供课堂调节，生成12个token；其余版本不传temperature。SDK为非流式，超时45秒、最多重试1次。
 
@@ -50,7 +50,7 @@ python preflight.py
 - 奇偶分支再求余题中，v3 同样止于第一步真实工具结果；v4 观察偶数结果后选择分支，实际执行三次调用，最终余数为 `499882649`。两题标准值均由教师侧整数运算独立核对；题面见 `docs/loop_examples.md`。v3 的观察结论是“未完成”，不是已产生错误数值。
 - v5 实际通过Bash读取CSV、写analysis.py、独立执行脚本、读取result.json/report.md；第二用户轮重新读取同一组文件。
 - 教师独立读取产物确认 **count=10、mean=24.5°C、max=29°C、min=20°C**；数据未改动，三个实际产物的SHA写入录制。固定答案未进入课堂Agent。
-- v3/v4回退后重新彩排，两版均无思考文本；v5保留上一轮当前源码对应的7段API思考文本及CSV核验记录。工具调用及下一用户轮正常继续。
+- v3/v4当前录制均无思考文本；v5本轮真实重新彩排，显示7段API思考文本并通过CSV核验。工具调用及下一用户轮正常继续。
 
 录制是原始程序stdout/stderr合并转录，不是完整SDK请求/响应归档；`model_requested`只表示请求配置，不冒充返回模型。完整输入另存于inputs字段；终端库自身的输入回显和管道彩排时的非TTY提示按原样保留，教师脚本不补写或清洗转录。教师验收结果存于validation字段，不修改原始程序输出。
 
@@ -60,14 +60,8 @@ python preflight.py
 
 网页已从当前六份文件与新录制重建，通过网页构建回归及来源预检。此前浏览器检查过全部阶段、复制命令与18px投影字号；本轮没有重做浏览器交互检查。页面不查询Git，也不执行API或历史命令。
 
-原Tag版六份录制原样保存在 `recordings/archive/2026-10-15/before-single-files/`，已与原Git内容逐字节核对；原隔离说明也逐字节保存。既有历史与Tag仅供追溯，本轮没有创建或更新教学Tag，也没有修改另一工作区及其新版v5。
+2026-10-16 清理后，当前文件树从95个已跟踪文件精简为37个。删除50份旧录制、4份历史文档、3个旧运行示例和重复的PLAN.md；这些文件的原文均保留在清理前提交 `7cd802d`。当前Bash说明从docs/sandbox.md改名为docs/bash.md，README链接已同步。
 
-乘方修复前的 v3/v4 录制原样保存在 `recordings/archive/2026-10-15/before-caret-power/`；修复后、替换为同题对照前的录制原样保存在 `recordings/archive/2026-10-15/before-loop-examples/`。新的课堂录制来自实际重新运行，未修改旧输出或替换旧 SHA 冒充运行结果。
-
-本轮输入调整前的六份录制原样保存在 `recordings/archive/2026-10-15/before-multiline-input/`。当前脚本已撤回乘方符号兼容逻辑，案例与彩排统一使用 Python 表达式 `**`。
-
-加入思考开关前的六份录制原样保存在 `recordings/archive/2026-10-15/before-thinking-switch/`。当前六份录制均来自新源码的实际重新运行，教师侧直接从SDK调用识别固定模型字符串，不再读取MODEL常量或环境覆盖。
-
-v3/v4回退前开启thinking的录制原样保存在 `recordings/archive/2026-10-15/before-v3-v4-thinking-revert/`；当前v3/v4记录来自固定关闭thinking后的新彩排，v5及其记录未改动。
+当前六份Agent源码、数据与模板均原样保留。检查发现v5已将超时内联为60秒，原测试仍引用旧常量、旧录制SHA也未同步；此次保留现有源码，调整超时测试，并仅对v5重新进行真实API彩排。v0—v4的录制原样保留，v5旧录制仍可在清理前提交中查阅，没有修改旧转录冒充新结果。未改动main分支或既有Tag。
 
 长算式 `((12345 * 6789 - 9876 * 5432) / 3 + 2468 * 1357) * 7 - 123**3` 的精确值为 `91964802`，两个 calculator 返回 `91964802.0`；该式经过模拟真实工具请求的执行与回填回归。

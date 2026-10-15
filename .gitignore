@@ -4,5 +4,6 @@ __pycache__/
 .DS_Store
 .env
 lab-runs/
+la-run/
 .coverage
 /web/index.html
