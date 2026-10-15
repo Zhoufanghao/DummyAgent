@@ -8,12 +8,12 @@ TEMPERATURE = 0
 CALCULATOR_TOOL = {"type": "function", "function": {
     "name": "calculator", "description": "计算算术表达式。",
     "parameters": {"type": "object", "properties": {
-        "expression": {"type": "string", "description": "算术表达式，如(12+3)*4"}},
+        "expression": {"type": "string", "description": "算术表达式，如(12+3)*4；^或**表示乘方"}},
         "required": ["expression"]}}}
 
 
 def calculator(expression):
-    return eval(expression)
+    return eval(expression.replace("^", "**"))
 
 
 def main():

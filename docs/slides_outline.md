@@ -17,14 +17,26 @@
 | 6 | 11:00—17:00 | 对话历史 | 无编号历史的请求；带 A102 的 history；保存与拼接代码 | `agent_v1.py` 新会话只问编号；重启后先告知 A102 再问。比较实际提交文本 | 不要求无历史模型必然答错；有限上下文不等于长期记忆 |
 | 7 | 17:00—18:30 | 结构化消息 | system/user/assistant 三条短消息 | 打开 `agent_v2.py`，解释身份与顺序；role 不是执行授权 | [Chat API](https://api-docs.deepseek.com/api/create-chat-completion/) |
 | 8 | 18:30—22:00 | 一个公开 Chat Template | 标注“公开 DeepSeek-V3 checkpoint”；五行序列化示例 | 运行 `chat_template_demo.py`，再运行 `agent_v2.py` 做两轮对话 | [固定 tokenizer_config.json](https://huggingface.co/deepseek-ai/DeepSeek-V3/blob/d990f047635ab4866b112caff006a18ce221605f/tokenizer_config.json)；不代表当前托管 API 内部模板 |
-| 9 | 22:00—25:00 | Calculator 工具说明 | 同一复杂算式；工具名称和 expression；内联 calculator | 先在 `agent_v2.py` 看纯文本回答，再打开 v3 Schema。指出 `eval(expression)` 的实际计算位置 | Schema 是说明书；函数实现就在本文件 |
-| 10 | 25:00—30:00 | 一次工具调用 | `LLM → Tool Call → Python → Tool Result → LLM`；真实 call/result 配对 | `python agent_v3.py` 后输入相同算式。定位执行和 tool_call_id；每个用户轮只做一次工具请求与回填 | [Chat API tools 字段](https://api-docs.deepseek.com/api/create-chat-completion/)；公开轨迹不是隐藏思考链 |
-| 11 | 30:00—33:30 | Agent Loop | v4 的实际 while True；结果回填、continue、结束分支 | `python agent_v4.py`，先计算、等结果再除以 3；检查下一轮真实上下文 | 无轮数上限；模型返回最终文本结束当前任务 |
+| 9 | 22:00—25:00 | Calculator 工具说明 | 同一复杂算式；工具名称和 expression；内联 calculator | 先在 `agent_v2.py` 看纯文本回答，再打开 v3 Schema。指出先将 `^` 转成 `**`、再 `eval` 的实际计算位置 | Schema 是说明书；函数实现就在本文件 |
+| 10 | 25:00—30:00 | 一次工具调用的边界 | `LLM → Tool Call → Python → Tool Result → LLM`；两步题的 v3 实测轨迹 | 先完成简单计算；28:30 在新 v3 会话输入下方两步题。本次仅第一步实际执行，最终正文为未执行的 DSML 调用，无最终数值 | 本次是未完成，不是算错数字；[Chat API tools 字段](https://api-docs.deepseek.com/api/create-chat-completion/)；公开轨迹不是隐藏思考链 |
+| 11 | 30:00—33:30 | 同一题，加入 Agent Loop | v4 的 while True；同一两步题的两次实际 calculator 结果；终值 256373415452969682 | 先圈出 v3/v4 回填后的分支差异，再在新 v4 会话粘贴完全相同题目，核对 A、B 和终值 | 本次 v4 两次工具执行完成；不承诺 v3 每次失败，以真实 Tool Result、步骤和终值为准 |
 | 12 | 33:30—34:50 | Bash 执行 | v5 的工具 Schema、run_bash、subprocess 调用、BASH_TIMEOUT | calculator 换成 Bash，循环保持；`["bash", "-c", command]` 直接执行，stdout/stderr 回填 | 当前目录执行、单命令 60 秒；不包含旧版隔离与导出机制 |
 | 13 | 34:50—39:00 | 再做温度报告 | 读到数据、算出结果、写入文件的实际证据 | 运行 `agent_v5.py` 输入开场任务，查看当前目录报告；按真实错误与反馈讲修正 | 教师独立核对 10 行、平均 24.5、最大 29、最小 20 ℃；无固定验收分支 |
 | 14 | 39:00—41:20 | Coding Agent 与 MCP | 2025-05-16 Codex 研究预览；2024-11-25 MCP 开源发布 | Codex 对应代码与测试反馈循环；MCP 对应统一工具接入，循环仍由应用实现 | [Codex 原始发布](https://openai.com/index/introducing-codex/)只作历史案例；[MCP 原始发布](https://www.anthropic.com/news/model-context-protocol) |
 | 15 | 41:20—43:00 | Prompt Injection 与信任边界 | 2025-11-24；外部内容 → 上下文 → 工具请求 | 说明外部内容可能改变任务方向，用自拟 CSV 短句说明；不执行攻击 | [官方防护进展](https://www.anthropic.com/news/prompt-injection-defenses)；原文邮件场景是假设，不是真实事故披露 |
 | 16 | 43:00—45:00 | 四层机制与完整程序 | token → 上下文 → 工具 → 反馈循环；六份文件名 | 网页依次选择阶段，回到 v5；退出票：为什么生成函数名不等于执行？ | 参考答：外部程序须解析请求、调用函数并回填结果 |
+
+## 第 10—11 页的同题比较
+
+28:30—30:00 在新 v3 会话输入，32:00—33:30 在新 v4 会话粘贴完全相同的题目：
+
+```text
+先用calculator计算123456789 * 987654321，得到整数A后，取A的末6位作为B；再用calculator计算B^3 + 17 * B。请给出A、B和最终整数。每次只请求当前一步的计算，必须等工具返回后再进行下一步，不要把整条流程合成一个表达式。
+```
+
+标准答案：`A = 121932631112635269`，`B = 635269`，最终整数 `256373415452969682`。本次实测 v3 只执行第一步，随后正文输出未执行的 DSML 调用、没有终值；v4 实际调用 calculator 两次并给出正确终值。讲成“v3 本次未完成”，不要讲成“v3 算出了错误数字”。
+
+模型可能合并表达式或自行心算，不承诺每次出现同样差异；按实际 Tool Result、步骤要求与终值核验。备用条件分支三步题见 [循环对照案例](loop_examples.md)，主讲不增加页数或课时。
 
 ## 第 8 页唯一模板文本
 
