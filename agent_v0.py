@@ -4,9 +4,6 @@ import os
 from openai import OpenAI
 from prompt_toolkit import prompt
 
-TEMPERATURE = 0
-TOKEN_STEPS = 12
-
 def main():
     client = OpenAI(api_key=os.environ["DEEPSEEK_API_KEY"],
                     base_url="https://api.deepseek.com/beta", timeout=45, max_retries=1)
@@ -15,16 +12,16 @@ def main():
         if not prefix.strip():
             continue
         choice = client.completions.create(
-            model="deepseek-flash", prompt=prefix, max_tokens=TOKEN_STEPS,
-            temperature=TEMPERATURE, logprobs=5).choices[0]
+            model="deepseek-flash", prompt=prefix, max_tokens=12, logprobs=5).choices[0]
+        logprobs = choice.logprobs
         context = prefix
         print("Pr[token | context]；top-k 候选概率不重新归一化。")
         for token, logprob, candidates in zip(
-                choice.logprobs.tokens, choice.logprobs.token_logprobs, choice.logprobs.top_logprobs):
+                logprobs.tokens, logprobs.token_logprobs, logprobs.top_logprobs):
             print(f"\n上下文：{context!r}")
-            for candidate, lp in sorted(candidates.items(), key=lambda pair: pair[1], reverse=True):
-                probability = format(math.exp(lp), ".4%") if lp > -9999 else "低于API显示范围"
-                print(f"  候选 {candidate!r:14} logprob={lp:9.4f} p={probability}")
+            for candidate, lp in candidates.items():
+                probability = f"{math.exp(lp):.4%}" if lp > -9999 else "低于API显示范围"
+                print(f"  候选 {candidate!r} logprob={lp:.4f} p={probability}")
             print(f"→ 生成 {token!r} p={math.exp(logprob):.4%}")
             context += token
         print(f"\n完整续写：{prefix}{choice.text}")

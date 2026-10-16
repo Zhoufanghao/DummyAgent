@@ -34,6 +34,8 @@ def read_stages(metadata):
         raise BuildError("每个阶段都必须包含 title / ability / why / can_do / focus / minutes 文本。")
     if any(stage.get("file") != f"agent_{stage['id']}.py" for stage in stages):
         raise BuildError("阶段源码文件必须对应 agent_v0.py 至 agent_v5.py。")
+    if any("prompt" in stage and not isinstance(stage["prompt"], str) for stage in stages):
+        raise BuildError("阶段提示词必须为文本。")
     return stages
 
 
@@ -156,6 +158,18 @@ def render_stage(root, stage, previous, index):
         extra = ('<p class="page-note">公开模板辅助演示：在项目根目录运行 '
                  '<code>python chat_template_demo.py</code>。该历史V3模板不代表当前Flash托管API内部格式。</p>')
     command = f"python {stage['file']}"
+    classroom_prompt = ""
+    if stage.get("prompt"):
+        classroom_prompt = (
+            '<section class="run-command classroom-prompt" aria-label="当前课堂提示词">'
+            '<h2>当前课堂提示词</h2><div class="command-row">'
+            f'<pre class="command-text">{escape(stage["prompt"])}</pre>'
+            '<button class="copy-prompt" type="button">复制提示词</button></div>'
+            '<p>粘贴到已启动的 Agent 输入位置；下方 REPLAY 对应历史题目，不是本题实测。</p></section>')
+    elif stage["id"] == "v5":
+        classroom_prompt = ('<section class="run-command"><h2>教师自由演示</h2>'
+                            '<p>不设置固定提示词。按现场任务说明目标，执行后检查实际结果；'
+                            '下方温度报告仅为历史 REPLAY 备用案例。</p></section>')
     hidden = " hidden" if index else ""
     return f'''<article class="stage" id="{escape(stage['id'])}" data-stage="{escape(stage['id'])}"{hidden}>
       <div class="eyebrow">{escape(stage['minutes'])} <span>独立文件 · 第 {index + 1} / 6 个阶段</span></div>
@@ -166,6 +180,7 @@ def render_stage(root, stage, previous, index):
         <section><h2>为什么需要</h2><p>{escape(stage['why'])}</p></section>
         <section><h2>可以演示</h2><p>{escape(stage['can_do'])}</p></section>
       </div>
+      {classroom_prompt}
       <section class="run-command" aria-label="运行当前阶段">
         <div class="command-row"><code class="command-text">{escape(command)}</code>
           <button class="copy-command" type="button">复制交互命令</button></div>
@@ -213,7 +228,8 @@ h1 { font-size:clamp(26px,2.5vw,38px); line-height:1.3; margin:9px 0 10px; lette
 .run-command { margin-bottom:20px; padding:12px 16px; background:#edf7f4; border:1px solid #c6e1d8; border-radius:8px; }
 .command-row { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
 .command-text { overflow-wrap:anywhere; white-space:pre-wrap; font-size:14px; }
-.copy-command { padding:5px 10px; border:1px solid #82b6a7; border-radius:5px; background:#fff; color:#155f4f; cursor:pointer; font-size:12px; }
+.classroom-prompt .command-text { font-family:inherit; font-size:16px; line-height:1.7; margin:0; flex:1 1 75%; }
+.copy-command,.copy-prompt { padding:5px 10px; border:1px solid #82b6a7; border-radius:5px; background:#fff; color:#155f4f; cursor:pointer; font-size:12px; }
 .run-command p { font-size:12px; color:var(--muted); margin:8px 0 0; }
 .version-bar,.code-toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
 .version-bar { font-size:12px; margin-bottom:12px; } code { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
@@ -259,7 +275,7 @@ JS = r'''
     if (updateHash) history.replaceState(null, '', '#' + stageId);
   }
   buttons.forEach(button => button.addEventListener('click', () => selectStage(button.dataset.target, true)));
-  document.querySelectorAll('.copy-command').forEach(button => {
+  document.querySelectorAll('.copy-command, .copy-prompt').forEach(button => {
     button.addEventListener('click', async () => {
       const command = button.closest('.command-row').querySelector('.command-text').textContent;
       try {
@@ -271,7 +287,7 @@ JS = r'''
         range.selectNodeContents(button.closest('.command-row').querySelector('.command-text'));
         selection.removeAllRanges();
         selection.addRange(range);
-        button.textContent = '命令已选中，请手动复制';
+        button.textContent = button.classList.contains('copy-prompt') ? '提示词已选中，请手动复制' : '命令已选中，请手动复制';
       }
     });
   });

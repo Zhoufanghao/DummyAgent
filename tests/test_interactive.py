@@ -113,10 +113,8 @@ class InteractiveTests(unittest.TestCase):
                         continue
                     self.assertLessEqual(set(imported), sys.stdlib_module_names | {"openai", "prompt_toolkit"})
                 module = load_agent(version)
-                for name in ("cli", "parse_args", "execute", "agent_loop", "MAX_ITERATIONS", "MODEL"):
+                for name in ("cli", "parse_args", "execute", "agent_loop", "MAX_ITERATIONS", "MODEL", "TEMPERATURE"):
                     self.assertFalse(hasattr(module, name))
-                if version > 0:
-                    self.assertFalse(hasattr(module, "TEMPERATURE"))
                 if version == 5:
                     self.assertTrue(module.THINKING)
                 else:
@@ -142,10 +140,7 @@ class InteractiveTests(unittest.TestCase):
                                                    timeout=45, max_retries=1)
                 request = result.requests[0]
                 self.assertEqual(request["model"], "deepseek-flash")
-                if version == 0:
-                    self.assertEqual(request["temperature"], 0)
-                else:
-                    self.assertNotIn("temperature", request)
+                self.assertNotIn("temperature", request)
                 self.assertFalse(request.get("stream", False))
                 if version in (2, 3, 4):
                     self.assertEqual(request["extra_body"], {"thinking": {"type": "disabled"}})
@@ -191,12 +186,20 @@ class InteractiveTests(unittest.TestCase):
                     self.assertEqual(result.requests[2]["messages"][3]["content"], ":reset")
 
     def test_token_prefixes_are_independent_and_use_api_probabilities(self):
-        result = run_agent(0, ["第一段前缀", "第二段前缀"])
+        reply = answer("续答")
+        reply.choices[0].logprobs = NS(
+            tokens=["续", "答"], token_logprobs=[-0.2, -2.0],
+            top_logprobs=[{"答": -2.0, "续": -0.2, "\n": -9999}, {"答": -2.0}])
+        result = run_agent(0, ["第一段前缀", "第二段前缀"], [reply, reply])
         self.assertEqual([request["prompt"] for request in result.requests], ["第一段前缀", "第二段前缀"])
         self.assertEqual(result.requests[0]["max_tokens"], 12)
         self.assertEqual(result.requests[0]["logprobs"], 5)
         self.assertIn("Pr[token | context]", result.output)
         self.assertIn("81.8731%", result.output)
+        self.assertIn("上下文：'第一段前缀续'", result.output)
+        self.assertIn("上下文：'第二段前缀续'", result.output)
+        self.assertIn("候选 '\\n' logprob=-9999.0000 p=低于API显示范围", result.output)
+        self.assertNotIn("p=0.0000%", result.output)
 
     def test_text_history_contains_user_and_assistant(self):
         result = run_agent(1, ["记住编号 Z987", "编号是什么"], [answer("记住了 Z987"), answer("Z987")])
